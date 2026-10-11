@@ -226,7 +226,4 @@ data/prep/
 1000PictureFinal/
 *.docx
 ~$*
-# Anh nguoi that (repo cong khai) - chi day khi nhom da quyet dinh
-data/raw256/
-data/name_map.csv
-figs/
+
