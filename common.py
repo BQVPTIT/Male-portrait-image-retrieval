@@ -13,8 +13,7 @@ import numpy as np
 ROOT = os.path.dirname(os.path.abspath(__file__))
 RAW_DIR = os.path.join(ROOT, "data", "raw256")        # ảnh thô 256x256
 PREP_DIR = os.path.join(ROOT, "data", "prep")         # kết quả tiền xử lý
-ALIGNED_DIR = os.path.join(PREP_DIR, "aligned")       # ảnh màu đã căn chỉnh, lọc nền
-GRAY_DIR = os.path.join(PREP_DIR, "gray")             # ảnh xám đã căn chỉnh
+ALIGNED_DIR = os.path.join(PREP_DIR, "aligned")       # ảnh màu đã căn chỉnh, lọc nền (.jpg, để xem)
 LANDMARK_CSV = os.path.join(PREP_DIR, "landmarks.csv")
 LOG_CSV = os.path.join(PREP_DIR, "preprocess_log.csv")
 FEATURE_CSV = os.path.join(ROOT, "data", "features.csv")
@@ -25,7 +24,7 @@ SIZE = 256            # cạnh ảnh (pixel)
 CENTER = SIZE / 2.0   # tâm ảnh (128, 128)
 
 # Vị trí chuẩn của hai mắt sau căn chỉnh (dùng cho MỌI ảnh -> mặt nằm giữa, cùng tỉ lệ):
-D_MAT = 64.0          # khoảng cách hai tâm mắt = 64 px = 1/4 cạnh ảnh (trung vị bộ dữ liệu thô: 64,2 px)
+D_MAT = 64.0          # khoảng cách hai tâm mắt = 64 px, xấp xỉ khoảng cách hai mắt ở ảnh gốc (trung vị 63,5 px)
 MAT_X = 128.0         # trung điểm hai mắt nằm trên trục dọc giữa ảnh
 MAT_Y = 100.0         # ... và ở hàng 100, để trán (phía trên) và cằm (phía dưới) cùng lọt trong khung
 

@@ -16,6 +16,7 @@ import numpy as np
 import cv2
 
 import common as C
+import preprocess
 
 SO_O_H, SO_O_S = 8, 4      # số ô của kênh H và kênh S
 H_MAX = 40.0               # dải sắc độ da được chia ô: 0..40 độ (5 độ / ô)
@@ -160,10 +161,12 @@ def extract(rgb, gray, pts):
 
 
 def read_prep(ma):
-    """Đọc ảnh màu và ảnh xám đã tiền xử lý của một mã ảnh (OpenCV trả B, G, R nên đảo kênh)."""
-    rgb = cv2.imread(os.path.join(C.ALIGNED_DIR, ma + ".png"), cv2.IMREAD_COLOR)[:, :, ::-1]
-    gray = cv2.imread(os.path.join(C.GRAY_DIR, ma + ".png"), cv2.IMREAD_GRAYSCALE)
-    return rgb, gray
+    """Đọc ảnh đã tiền xử lý của một mã ảnh để XEM / vẽ hình (OpenCV trả B, G, R nên đảo kênh).
+
+    Trả về (ảnh màu, ảnh xám tính từ ảnh màu). Không dùng để tính đặc trưng, xem run().
+    """
+    rgb = cv2.imread(os.path.join(C.ALIGNED_DIR, ma + ".jpg"), cv2.IMREAD_COLOR)[:, :, ::-1]
+    return rgb, np.round(C.to_gray(rgb)).astype(np.uint8)
 
 
 def read_landmarks():
@@ -174,14 +177,19 @@ def read_landmarks():
 
 
 def run():
-    """Trích đặc trưng cho mọi ảnh đạt tiền xử lý, lưu data/features.csv (mã ảnh + 39 cột)."""
+    """Trích đặc trưng cho mọi ảnh đạt tiền xử lý, lưu data/features.csv (mã ảnh + 39 cột).
+
+    Mỗi ảnh gốc được đưa qua preprocess.process_one rồi trích đặc trưng ngay trên kết quả,
+    đúng đường đi của ảnh truy vấn trong search.search_image -> ảnh trong CSDL và ảnh truy vấn
+    được tính theo cùng một cách.
+    """
     lm = read_landmarks()
     with open(C.FEATURE_CSV, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["ma_anh"] + FEATURE_NAMES)
         for ma in sorted(lm):
-            rgb, gray = read_prep(ma)
-            w.writerow([ma] + [f"{x:.6f}" for x in extract(rgb, gray, lm[ma])])
+            kq = preprocess.process_one(os.path.join(C.RAW_DIR, ma + ".jpg"))
+            w.writerow([ma] + [f"{x:.6f}" for x in extract(kq["rgb"], kq["gray"], kq["pts"])])
     print(f"Trich dac trung xong: {len(lm)} anh x {len(FEATURE_NAMES)} chieu.")
     return len(lm)
 

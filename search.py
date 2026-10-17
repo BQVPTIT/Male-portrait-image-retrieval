@@ -88,10 +88,11 @@ def search_vector(v, bo_qua=None):
 def search_image(path):
     """Tìm kiếm với một ảnh mới: tiền xử lý -> trích 39 đặc trưng -> so với CSDL.
 
-    Trả về (kết quả tiền xử lý, vector đặc trưng gốc, danh sách top-5). Ảnh không đạt tiền xử lý
-    (không đọc được, sai kích thước, không thấy đúng 1 khuôn mặt) thì vector và top-5 là None.
+    Trả về (kết quả tiền xử lý, vector đặc trưng gốc, danh sách top-5). Ảnh truy vấn qua đủ các
+    bước kiểm tra như ảnh trong CSDL; không đạt (không phải JPG, sai kích thước, ảnh mờ, không thấy
+    đúng 1 khuôn mặt, điểm mốc không ổn định) thì vector và top-5 là None, lý do ở kq["ly_do"].
     """
-    kq = preprocess.process_one(path, kiem_tra_net=False)
+    kq = preprocess.process_one(path)
     if not kq["dat"]:
         return kq, None, None
     v = F.extract(kq["rgb"], kq["gray"], kq["pts"])

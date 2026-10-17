@@ -223,7 +223,14 @@ __marimo__/
 venv310/
 models/
 data/prep/
-1000PictureFinal/
+node_modules/
 *.docx
 ~$*
 
+# Bao cao (docx, ban nhap) va tai lieu tham khao / ghi am cua thay - khong day len GitHub
+bao_cao/
+tai_lieu/
+tai_lieu_thay/
+
+# Cong cu cua Claude Code (skill viet van), khong thuoc bai tap lon
+.claude/

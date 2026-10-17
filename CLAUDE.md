@@ -1,5 +1,7 @@
 # Bối cảnh dự án
 
+> **Đọc `HUONG_DAN_CHUNG.md` trước.** Tệp đó là bản mới nhất (pipeline, quy tắc viết báo cáo); khi khác với phần dưới thì theo `HUONG_DAN_CHUNG.md`.
+
 BTL môn Hệ CSDL đa phương tiện (PTIT, GV Nguyễn Đình Hóa), nhóm 19, 3 người, định hướng BA, không mạnh code.
 
 **Đề:** xây hệ CSDL lưu trữ và tìm kiếm ảnh chân dung đàn ông. Có ≥ 1000 ảnh cùng kích thước, mỗi ảnh 1 mặt nằm giữa, chụp thẳng. Nhập 1 ảnh mới → trả về 5 ảnh giống nhất, xếp giảm dần theo độ tương đồng.
@@ -15,7 +17,7 @@ BTL môn Hệ CSDL đa phương tiện (PTIT, GV Nguyễn Đình Hóa), nhóm 19
 
 ## Pipeline hiện tại
 - `common.py`: các phép xử lý tự code bằng numpy (ảnh xám, Laplace, xoay + nội suy song tuyến tính, RGB→HSV, LBP).
-- `preprocess.py`: B1 đọc/kiểm tra → B2 xám → B3 độ nét → B4 phát hiện mặt (dlib) → B5 68 điểm mốc (dlib) → B6 xoay cho 2 mắt nằm ngang → B7 lọc nền bằng mặt nạ landmark → B8 lưu vào `data/prep/`.
+- `preprocess.py` (6 bước): B1 đọc/kiểm tra → B2 xám → B3 độ nét → B4 phát hiện mặt + 68 điểm mốc (dlib) → B5 căn chỉnh cho 2 mắt nằm ngang → B6 lọc nền bằng mặt nạ landmark; sau đó lưu vào `data/prep/`.
 - `features.py`: vector 39 chiều
   - **Hình học (5):** tỉ lệ khung mặt d(0,16)/dY(27,8); gò má/hàm d(0,16)/d(4,12); khoảng cách mắt/rộng mặt; rộng cánh mũi d(31,35)/khoảng cách mắt; cao mũi dY(27,33)/dY(27,8).
   - **Kết cấu (2):** phương sai LBP vùng cằm–miệng (điểm 33, 54, 12, 8, 4, 48); mật độ lông mày (Otsu + LBP khác 0 và 255).
