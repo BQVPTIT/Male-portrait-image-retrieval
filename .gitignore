@@ -222,7 +222,7 @@ __marimo__/
 # --- Du an BTL ---
 venv310/
 models/
-data/prep/
+# data/prep/ (anh da tach nen, diem moc) duoc day len de ca nhom xem
 node_modules/
 *.docx
 ~$*
