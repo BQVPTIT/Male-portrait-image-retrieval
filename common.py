@@ -18,6 +18,7 @@ LANDMARK_CSV = os.path.join(PREP_DIR, "landmarks.csv")
 LOG_CSV = os.path.join(PREP_DIR, "preprocess_log.csv")
 FEATURE_CSV = os.path.join(ROOT, "data", "features.csv")
 NORM_JSON = os.path.join(ROOT, "data", "norm_params.json")
+DB_PATH = os.path.join(ROOT, "data", "khuon_mat.db")          # CSDL SQLite (database.py)
 MODEL_PATH = os.path.join(ROOT, "models", "shape_predictor_68_face_landmarks.dat")
 
 SIZE = 256            # cạnh ảnh (pixel)

@@ -2,37 +2,44 @@
 search.py - Chuẩn hóa đặc trưng và tìm 5 ảnh giống ảnh truy vấn nhất.
 
     1. Chuẩn hóa min-max từng chiều:  x' = (x - min) / (max - min)
-       (min, max tính trên toàn bộ CSDL, lưu ở data/norm_params.json để dùng lại cho ảnh truy vấn)
+       (min, max tính trên toàn bộ CSDL, lưu ở bảng thuoc_tinh để dùng lại cho ảnh truy vấn)
     2. Khoảng cách riêng cho từng bộ thuộc tính, chia căn số chiều để 3 bộ cùng thang:
            D_bộ = sqrt( tổng_i (q_i - x_i)^2 ) / sqrt(n_bộ)       n = 5, 2, 32
     3. Khoảng cách chung:  D = (1/3)*D_hình_học + (1/3)*D_kết_cấu + (1/3)*D_màu_sắc
+       (trọng số lưu ở bảng bo_thuoc_tinh)
     4. Độ tương đồng:      S = 1 / (1 + D)   (D = 0 -> S = 1; D càng lớn S càng gần 0)
     5. Sắp xếp S giảm dần, lấy 5 ảnh đầu.
+
+Vector đặc trưng, min, max và trọng số đều đọc từ CSDL SQLite (database.py).
 
 Chạy:  python search.py duong_dan_anh_truy_van.jpg
 """
 import sys
-import csv
 import json
 import numpy as np
 
 import common as C
 import preprocess
 import features as F
+import database as DB
 
-TRONG_SO = {"hinh_hoc": 1 / 3, "ket_cau": 1 / 3, "mau_sac": 1 / 3}
 TOP_K = 5
 
 
 def load_features():
-    """Đọc data/features.csv -> (danh sách mã ảnh, ma trận N x 39 giá trị gốc)."""
-    with open(C.FEATURE_CSV, newline="") as f:
-        rows = list(csv.reader(f))[1:]
-    return [r[0] for r in rows], np.array([r[1:] for r in rows], dtype=np.float64)
+    """Đọc bảng dac_trung -> (danh sách mã ảnh, ma trận N x 39 giá trị gốc)."""
+    con = DB.ket_noi()
+    try:
+        return DB.doc_dac_trung(con)
+    finally:
+        con.close()
 
 
 def fit_norm(X):
-    """Tính min, max từng chiều trên toàn bộ CSDL và lưu vào norm_params.json."""
+    """Tính min, max từng chiều trên toàn bộ CSDL và lưu vào norm_params.json.
+
+    database.tao_csdl chép hai giá trị này vào cột gia_tri_min, gia_tri_max của bảng thuoc_tinh.
+    """
     mn, mx = X.min(axis=0), X.max(axis=0)
     with open(C.NORM_JSON, "w", encoding="utf-8") as f:
         json.dump({"ten": F.FEATURE_NAMES, "min": mn.tolist(), "max": mx.tolist()}, f, indent=1)
@@ -40,33 +47,65 @@ def fit_norm(X):
 
 
 def load_norm():
-    """Đọc lại min, max đã lưu."""
-    with open(C.NORM_JSON, encoding="utf-8") as f:
-        p = json.load(f)
-    return np.array(p["min"]), np.array(p["max"])
+    """Đọc min, max của 39 chiều từ bảng thuoc_tinh."""
+    con = DB.ket_noi()
+    try:
+        return DB.doc_min_max(con)
+    finally:
+        con.close()
+
+
+def load_weights():
+    """Đọc trọng số của 3 bộ thuộc tính từ bảng bo_thuoc_tinh."""
+    con = DB.ket_noi()
+    try:
+        return DB.doc_trong_so(con)
+    finally:
+        con.close()
 
 
 def normalize(X, mn, mx):
-    """Chuẩn hóa min-max: x' = (x - min) / (max - min). Chiều có max = min thì cho bằng 0.
+    """Chuẩn hóa min-max: x' = (x - min) / (max - min), rồi kẹp vào [0, 1]. Chiều có max = min thì cho bằng 0.
 
-    Ảnh trong CSDL luôn cho x' trong [0, 1]; ảnh truy vấn mới có thể hơi ra ngoài khoảng này
-    nếu giá trị của nó nhỏ hơn min hoặc lớn hơn max của CSDL.
+    Ảnh trong CSDL luôn cho x' trong [0, 1]. Ảnh truy vấn có giá trị nhỏ hơn min hoặc lớn hơn max
+    của CSDL (ví dụ ảnh bị chỉnh màu quá đậm) thì x' được kẹp về 0 hoặc 1:
+        x' = min(1, max(0, x'))
+    Nhờ vậy một đặc trưng lệch thường không kéo khoảng cách của cả bộ vượt khỏi [0, 1].
     """
     rong = mx - mn
-    return (X - mn) / np.where(rong == 0, 1.0, rong) * (rong != 0)
+    return np.clip((X - mn) / np.where(rong == 0, 1.0, rong) * (rong != 0), 0.0, 1.0)
 
 
-def distances(q, Xn):
+def distances(q, Xn, trong_so):
     """Khoảng cách từ vector truy vấn q (đã chuẩn hóa) tới từng hàng của Xn (đã chuẩn hóa).
 
-    Trả về (D chung, dict D từng bộ). D_bộ = Euclid / sqrt(số chiều của bộ).
+    Trả về (D chung, dict D từng bộ). D_bộ = Euclid / sqrt(số chiều của bộ);
+    D = tổng trọng_số_bộ * D_bộ.
     """
     d_bo = {}
     for ten, vt in F.BO.items():
         hieu = Xn[:, vt] - q[vt]
         d_bo[ten] = np.sqrt((hieu ** 2).sum(axis=1)) / np.sqrt(hieu.shape[1])
-    D = sum(TRONG_SO[ten] * d_bo[ten] for ten in F.BO)
+    D = sum(trong_so[ten] * d_bo[ten] for ten in F.BO)
     return D, d_bo
+
+
+def xep_hang(v, bo_qua=None):
+    """So vector gốc v (39 chiều) với MỌI ảnh trong CSDL, giữ lại các kết quả trung gian.
+
+    Trả về dict: ids, Xn (vector CSDL đã chuẩn hóa), q (v đã chuẩn hóa), trong_so, d_bo (D từng bộ),
+    D, S (mảng cho mọi ảnh), top (chỉ số TOP_K ảnh có S lớn nhất, giảm dần),
+    con_lai (mặt nạ các ảnh được xét, tức trừ ảnh bo_qua).
+    """
+    ids, X = load_features()
+    mn, mx = load_norm()
+    trong_so = load_weights()
+    q, Xn = normalize(v, mn, mx), normalize(X, mn, mx)
+    D, d_bo = distances(q, Xn, trong_so)
+    S = 1.0 / (1.0 + D)
+    con_lai = np.array([m != bo_qua for m in ids])
+    top = [i for i in np.argsort(-S, kind="stable") if con_lai[i]][:TOP_K]
+    return dict(ids=ids, Xn=Xn, q=q, trong_so=trong_so, d_bo=d_bo, D=D, S=S, top=top, con_lai=con_lai)
 
 
 def search_vector(v, bo_qua=None):
@@ -75,14 +114,10 @@ def search_vector(v, bo_qua=None):
     bo_qua: mã ảnh không đưa vào kết quả (dùng khi lấy chính một ảnh trong CSDL làm truy vấn).
     Trả về danh sách dict: ma_anh, S, D, D_hinh_hoc, D_ket_cau, D_mau_sac (S giảm dần).
     """
-    ids, X = load_features()
-    mn, mx = load_norm()
-    D, d_bo = distances(normalize(v, mn, mx), normalize(X, mn, mx))
-    S = 1.0 / (1.0 + D)
-    thu_tu = [i for i in np.argsort(-S) if ids[i] != bo_qua][:TOP_K]
-    return [{"ma_anh": ids[i], "S": float(S[i]), "D": float(D[i]),
-             "D_hinh_hoc": float(d_bo["hinh_hoc"][i]), "D_ket_cau": float(d_bo["ket_cau"][i]),
-             "D_mau_sac": float(d_bo["mau_sac"][i])} for i in thu_tu]
+    xh = xep_hang(v, bo_qua)
+    return [{"ma_anh": xh["ids"][i], "S": float(xh["S"][i]), "D": float(xh["D"][i]),
+             "D_hinh_hoc": float(xh["d_bo"]["hinh_hoc"][i]), "D_ket_cau": float(xh["d_bo"]["ket_cau"][i]),
+             "D_mau_sac": float(xh["d_bo"]["mau_sac"][i])} for i in xh["top"]]
 
 
 def search_image(path):

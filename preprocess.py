@@ -60,6 +60,55 @@ def danh_so_anh(src_dir):
     return len(files)
 
 
+def thu_nho_khoi(anh, k):
+    """Thu nhỏ ảnh k lần (k nguyên): mỗi điểm mới = trung bình khối k x k điểm cũ."""
+    if k <= 1:
+        return anh.astype(np.float64)
+    h, w = anh.shape[0] // k * k, anh.shape[1] // k * k
+    return anh[:h, :w].astype(np.float64).reshape(h // k, k, w // k, k, -1).mean(axis=(1, 3))
+
+
+def lam_vuong(path, path_ra):
+    """Chuẩn bị ảnh truy vấn chưa đúng 256 x 256 (làm TRƯỚC 6 bước, không phải một bước tiền xử lý).
+
+    Đúng cách đã làm với ảnh của bộ dữ liệu (Báo cáo 1, mục 1.1): ảnh chưa vuông được làm vuông
+    mà không kéo giãn khuôn mặt, sau đó đưa về 256 x 256 và lưu JPG.
+      1. Dò khuôn mặt bằng dlib (detect_landmarks) trên ảnh xám; ảnh lớn được thu nhỏ trước
+         (thu_nho_khoi) để dò nhanh. Phải có đúng 1 khuôn mặt.
+      2. Cắt hình vuông tâm là tâm khung mặt, cạnh a = 2 x cạnh khung mặt: khi đó khung mặt chiếm
+         1/4 diện tích ảnh, đúng như phần lớn ảnh trong CSDL (trung vị ti_le_khung = 0,254).
+         a không vượt cạnh ngắn của ảnh; hình vuông chạm mép thì dịch vào trong.
+         Cắt hình vuông nên khuôn mặt không bị kéo giãn.
+      3. Đưa hình vuông về 256 x 256: thu nhỏ k = floor(a / 256) lần bằng trung bình khối k x k,
+         phần lẻ còn lại dùng nội suy song tuyến tính (common.bilinear_sample).
+      4. Ghi ra path_ra dạng JPG (chất lượng 95).
+    Trả về (True, "") hoặc (False, lý do). Ảnh không phải JPG bị từ chối như ở bước 1.
+    """
+    if not la_jpg(path):
+        return False, "khong phai JPG"
+    rgb = read_rgb(path)
+    if rgb is None or rgb.ndim != 3:
+        return False, "khong doc duoc"
+    h, w = rgb.shape[:2]
+    k_do = max(1, int(np.ceil(max(h, w) / 640)))           # ảnh dò mặt có cạnh dài <= 640
+    nho = thu_nho_khoi(rgb, k_do)
+    so_mat, khung, _, _ = detect_landmarks(np.round(C.to_gray(nho)).astype(np.uint8))
+    if so_mat != 1:
+        return False, "so khuon mat khac 1"
+    l, t, r, b = [x * k_do for x in khung]
+    a = int(min(2 * max(r - l, b - t), h, w))
+    x0 = int(np.clip(round((l + r) / 2 - a / 2), 0, w - a))
+    y0 = int(np.clip(round((t + b) / 2 - a / 2), 0, h - a))
+    vuong = thu_nho_khoi(rgb[y0:y0 + a, x0:x0 + a], max(1, a // C.SIZE))
+    n = vuong.shape[0]
+    toa_do = np.minimum((np.arange(C.SIZE) + 0.5) * n / C.SIZE - 0.5, n - 1.001).clip(0)
+    ys, xs = np.meshgrid(toa_do, toa_do, indexing="ij")
+    ra = np.clip(np.round(C.bilinear_sample(vuong, xs, ys)), 0, 255).astype(np.uint8)
+    ok, buf = cv2.imencode(".jpg", ra[:, :, ::-1], [cv2.IMWRITE_JPEG_QUALITY, 95])
+    buf.tofile(path_ra)
+    return True, ""
+
+
 # ---------------------------------------------------------------- B1
 def la_jpg(path):
     """Kiểm tra tệp có đúng là ảnh JPG không (hệ thống chỉ dùng một định dạng JPG).
@@ -211,7 +260,7 @@ def process_one(path):
     l, t, r, b = khung
     kq["diem_mat"] = diem
     kq["lech_moc"] = landmark_shift(gray, pts)
-    if kq["lech_moc"] > NGUONG_LECH_MOC:
+    if kq["lech_moc"] >= NGUONG_LECH_MOC:
         kq["ly_do"] = "diem moc khong on dinh"
         return kq
     kq["ti_le_khung"] = (r - l) * (b - t) / float(C.SIZE * C.SIZE)     # diện tích khung mặt / diện tích ảnh

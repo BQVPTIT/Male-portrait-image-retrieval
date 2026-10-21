@@ -11,7 +11,7 @@ Dành cho cả nhóm và cho mọi phiên làm việc với Claude. Khi nội du
 ## 2. Quy tắc viết báo cáo (bắt buộc)
 1. **Chỉ viết kết quả cuối.** Không kể quá trình thử sai, lần chạy trước, số ảnh từng bị loại hay đã thay. Mọi con số là số của lần chạy cuối.
 2. **Không ghi phân công chi tiết** từng người từng việc. Bảng đầu báo cáo chỉ có họ tên và mã sinh viên.
-3. **Không dùng bảng** trong báo cáo: trình bày bằng lời, gạch đầu dòng và công thức. **Không có bảng đối chiếu và không có phụ lục** (không đối chiếu yêu cầu đề, không đối chiếu câu hỏi vấn đáp, không ánh xạ công thức – code).
+3. **Được dùng bảng** nếu thầy đọc dễ (user cho phép 21/10/2026). **Không có bảng đối chiếu và không có phụ lục** (không đối chiếu yêu cầu đề, không đối chiếu câu hỏi vấn đáp, không ánh xạ công thức – code).
 4. **Trình bày theo bản mẫu** `báo cáo dpt nhận diện ảnh 1-file mẫu 8.5đ.pdf`: trang bìa, mục lục, lời nói đầu, yêu cầu, các “PHẦN”, mục con đánh số “1.”, “1.1,”, gạch đầu dòng “-” và “+”, có “Ưu điểm / Nhược điểm”, “Ví dụ”, câu hỏi “Tại sao…?” và kết luận “=>”. Đề mục theo dàn ý nhóm đã chọn (Phần 1: bộ dữ liệu và tiền xử lý; Phần 2: bộ thuộc tính).
 5. **Nội dung theo nguyên tắc 80–20:** mỗi mục trả lời đúng những câu thầy hay hỏi: là gì, vì sao chọn con số này (kể cả min/max, miền giá trị), công thức, ví dụ tính tay, giá trị thông tin.
 6. **Không đề cập râu, kính, khẩu trang, phụ kiện** trong báo cáo. Nhóm đã quyết định bộ dữ liệu có ảnh để râu là bình thường, không coi là lỗi dữ liệu.
@@ -21,7 +21,7 @@ Dành cho cả nhóm và cho mọi phiên làm việc với Claude. Khi nội du
 9. Trả lời bằng tiếng Việt, ngắn gọn.
 
 ## 3. Pipeline hiện tại
-`data/raw256/` (1006 ảnh 256×256 .jpg) → `preprocess.py` → `features.py` → `search.py`. Chạy tất cả bằng `run_all.ipynb`.
+`data/raw256/` (1005 ảnh 256×256 .jpg) → `preprocess.py` → `features.py` → `database.py` (SQLite) → `search.py` → `app.py`. Chạy tất cả bằng `run_all.ipynb`; đánh giá bằng `danh_gia.py`.
 
 | Bước | Việc làm | Cách làm |
 |---|---|---|
@@ -39,7 +39,9 @@ Tiền xử lý **6 bước** (chốt 14/10/2026, gộp phát hiện mặt với
 - **Hình học (5):** tỉ lệ khung mặt d(0,16)/dY(27,8); gò má/hàm d(0,16)/d(4,12); khoảng cách mắt/rộng mặt; rộng cánh mũi d(31,35)/khoảng cách mắt; cao mũi dY(27,33)/dY(27,8).
 - **Kết cấu (2):** phương sai LBP vùng cằm – miệng (điểm 33, 54, 12, 8, 4, 48); mật độ lông mày (Otsu + LBP khác 0 và 255).
 - **Màu (32):** lược đồ H × S trên mặt nạ da (2 má + trán); H chia 8 ô trong 0–40°, S chia 4 ô.
-- **Tìm kiếm:** chuẩn hóa min-max (lưu `data/norm_params.json`); khoảng cách Euclid tính riêng từng bộ, chia √(số chiều), trọng số 1/3; S = 1/(1+D); lấy top-5.
+- **Tìm kiếm (phương án A, chốt 21/10/2026):** chuẩn hóa min-max (min, max đọc từ bảng `thuoc_tinh`); khoảng cách Euclid tính riêng từng bộ, chia √(số chiều), trọng số 1/3 (bảng `bo_thuoc_tinh`); S = 1/(1+D); lấy top-5 (`search.xep_hang`). Phép thử 8040 ảnh biến đổi: hạng 1 96,4%, top-5 99,0%.
+- **CSDL:** SQLite `data/khuon_mat.db`, 4 bảng `anh` (PK ma_anh, UNIQUE duong_dan), `dac_trung` (ma_anh vừa PK vừa FK, 39 cột REAL giá trị gốc), `bo_thuoc_tinh` (3 bộ + trọng số), `thuoc_tinh` (39 hàng: ký hiệu, tên, bộ, vai trò, min, max). `PRAGMA foreign_keys = ON` mỗi lần kết nối; `database.kiem_tra()` chạy các câu lệnh kiểm tra toàn vẹn; `them_anh()` nạp ảnh mới trong một giao dịch, min/max giữ cố định.
+- **App:** `app.py` (Tkinter): Upload ảnh (ảnh chưa 256×256 được `preprocess.lam_vuong` cắt vuông quanh mặt, cạnh = 2 × khung mặt, không kéo giãn) / Chọn ảnh trong CSDL (bỏ chính nó); mỗi kết quả hiện ảnh gốc + ảnh đã xử lý cùng cỡ, S, D, D từng bộ, % số ảnh xa hơn, đặc trưng tương đồng / khác biệt (đọc cột `vai_tro`).
 
 ## 4. Tệp và thư mục
 Code và dữ liệu nằm ở thư mục gốc (đường dẫn trong code không đổi). Ba thư mục `bao_cao/`, `tai_lieu/`, `tai_lieu_thay/` không đưa lên git.
@@ -48,13 +50,17 @@ Code và dữ liệu nằm ở thư mục gốc (đường dẫn trong code khô
 |---|---|
 | `common.py` | các phép xử lý tự code bằng numpy |
 | `preprocess.py`, `features.py`, `search.py` | tiền xử lý 6 bước, trích đặc trưng, tìm kiếm |
+| `database.py`, `app.py`, `danh_gia.py` | CSDL SQLite 4 bảng, giao diện Tkinter, phép thử ảnh biến đổi |
+| `data/khuon_mat.db`, `data/danh_gia.csv`, `data/truy_van_mau/` | CSDL, kết quả phép thử, ảnh dùng thử khi demo |
 | `run_all.ipynb` | chạy toàn bộ, tạo hình vào `figs/` (kể cả 2 sơ đồ khối Hình 1.3, 2.1) |
-| `data/raw256/` | 1006 ảnh chuẩn man_0001 … man_1006 |
+| `data/raw256/` | 1005 ảnh chuẩn man_0001 … man_1005 (21/10/2026 xóa ảnh trùng man_0827 cũ, đánh số lại) |
 | `data/name_map.csv` | mã ảnh ↔ tên tệp gốc |
 | `data/features.csv`, `data/norm_params.json` | vector đặc trưng gốc và tham số chuẩn hóa |
 | `data/prep/` | kết quả tiền xử lý (sinh lại được) |
 | `models/` | file dlib `shape_predictor_68_face_landmarks.dat` (95 MB, tải về từ dlib.net) |
-| `bao_cao/Bao-cao-1-Nhom19-theo-mau-v3.docx` | **báo cáo 1 bản mới nhất** |
+| `bao_cao/Bao-cao-1-Nhom19-theo-mau-v6.docx` | **báo cáo 1 bản nộp** (nhóm sửa tay, không dựng lại từ script) |
+| `bao_cao/Bao-cao-2-Nhom19.docx`, `bao_cao/build_bao_cao_2.js` | báo cáo 2 và script dựng (`node build_bao_cao_2.js`) |
+| `bao_cao/ban_giao_bc2/` | bàn giao BC2, script thử 3 phương án tìm kiếm (`thu_bien_the.py`, `chon_phuong_an.py`), chụp app (`chup_app.py`), xóa ảnh trùng (`xoa_anh_trung.py`) |
 | `bao_cao/build_bao_cao_1.js` | script dựng báo cáo 1 (toàn bộ nội dung nằm trong script). Chạy: `cd bao_cao`, `npm install docx` (một lần), `node build_bao_cao_1.js`. Sửa nội dung thì sửa script rồi dựng lại; nếu ai đã sửa tay tệp .docx thì so text trước khi ghi đè |
 | `bao_cao/nhap/` | bản nháp cũ của Minh/Nam, `anh_da_thay.csv` (danh sách ảnh đã thay, không đưa vào báo cáo) |
 | `tai_lieu/slide/XLA/` | 8 slide môn Xử lý ảnh số: Laplacian, gradient, Otsu, phân vùng (ch.5); lược đồ xám (ch.3); hệ màu HSV, JPG/PNG (ch.4); JPEG/DCT (ch.6); hàm phân lớp tuyến tính (ch.8) |
@@ -80,7 +86,8 @@ Thầy hỏi theo ba mạch: dữ liệu, CSDL, đặc trưng và cách so sánh
   - bản v5 (16/10) cần cả nhóm đọc duyệt, mở bằng Word và bấm cập nhật mục lục;
   - (đã xử lý 16/10) Hình 1.2 vẽ lại, bỏ ảnh có cạnh trắng (`vien_trang` trong notebook); câu mô tả đổi thành "làm vuông mà không kéo giãn". Hệ số 0,6, 1,25, S = 4 ô đã có lý do trong báo cáo và docstring. Ảnh truy vấn qua đủ các bước kiểm tra như ảnh trong CSDL (bỏ tham số `kiem_tra_net`); 1006 ảnh vẫn đạt, `features.csv` không đổi. Hai bước kiểm tra không loại ảnh nào: báo cáo giải thích là chặn ảnh nạp thêm và ảnh truy vấn;
   - nhiều ảnh có râu (nhóm chấp nhận, báo cáo không nhắc) → chuẩn bị câu trả lời miệng.
-- **Báo cáo 2:** **mô hình CSDL và lệnh tạo bảng** (chưa làm), sơ đồ khối hệ thống, minh họa kết quả trung gian, đánh giá kết quả, demo.
+- **Báo cáo 2:** đã có bản nháp đầy đủ `bao_cao/Bao-cao-2-Nhom19.docx` (dựng bằng `bao_cao/build_bao_cao_2.js`, 21/10/2026): PHẦN 3 (trích rút, CSDL), PHẦN 4 (sơ đồ khối, quy trình, kết quả trung gian, đánh giá, demo). Cần cả nhóm đọc duyệt, mở Word cập nhật mục lục.
+- **Báo cáo 1:** v6 vẫn ghi 1006 ảnh, phải sửa thành 1005 (việc của chat sau).
 
 ## 8. Bàn giao (chat ngày 12–16/10/2026)
 **Cách làm việc đang dùng:** duyệt báo cáo 1 từng mục. Với mỗi mục: Claude giải thích nội dung, tự lấy câu hỏi thầy từng hỏi (D22, bản đồ câu hỏi, tóm tắt bài giảng) và tự trả lời, chỉ ra chỗ yếu; user chốt rồi Claude sửa script và dựng lại báo cáo. Bản hiện tại là **v5** (`bao_cao/Bao-cao-1-Nhom19-theo-mau-v5.docx`).
