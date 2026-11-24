@@ -23,7 +23,7 @@ import features as F
 import database as DB
 
 TOP_K = 5
-TRONG_SO = {"hinh_hoc": 1 / 3, "ket_cau": 1 / 3, "mau_sac": 1 / 3}    # Báo cáo 1, mục 2.6
+TRONG_SO = {"hinh_hoc": 1 / 3, "ket_cau": 1 / 3, "mau_sac": 1 / 3}    # Báo cáo 2, Phần 4 mục 2.4
 
 
 def load_features():

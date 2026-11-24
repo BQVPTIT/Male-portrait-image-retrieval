@@ -9,7 +9,7 @@ kèm các kết quả trung gian để giải thích từng bước.
                                        d(mắt trái, mắt phải), d(P31,P35), dY(P27,P33).
     Vùng kết cấu, mặt nạ da          : tô vùng cằm - miệng (X5), vùng lông mày (X6), vùng da 2 má + trán
                                        (X7 - X38), đúng các mặt nạ mà features.py dùng.
-    Trọng số 3 bộ                    : mặc định 1/3 mỗi bộ (search.TRONG_SO, Báo cáo 1). Kéo thanh trượt rồi
+    Trọng số 3 bộ                    : mặc định 1/3 mỗi bộ (search.TRONG_SO, Báo cáo 2). Kéo thanh trượt rồi
                                        bấm "Tìm lại" để THỬ trọng số khác (chuẩn hóa cho tổng = 1); trọng số
                                        thử không ghi vào CSDL.
 
@@ -146,7 +146,7 @@ class App:
         self.vi_tri = {m: i for i, m in enumerate(self.ids)}
         self.lm = F.read_landmarks()
         self.tt = DB.doc_thuoc_tinh()             # mô tả đặc trưng: ký hiệu, tên, vai trò (Bảng 2.1)
-        self.ts_db = S.load_weights()             # trọng số 3 bộ (1/3, Báo cáo 1)
+        self.ts_db = S.load_weights()             # trọng số 3 bộ (1/3, Báo cáo 2)
         self.tuong_dong = [k for k in range(7) if self.tt[k]["vai_tro"] == "tuong_dong"]    # X0, X1
         self.khac_biet = [k for k in range(7) if self.tt[k]["vai_tro"] == "khac_biet"]      # X2 - X6
         preprocess.detect_landmarks(np.zeros((64, 64), dtype=np.uint8))     # nạp sẵn mô hình dlib
@@ -178,7 +178,7 @@ class App:
             tk.Scale(thanh2, from_=0, to=1, resolution=0.01, orient="horizontal", length=130, variable=self.w[b],
                      label=f"w {TEN_BO[b].lower()}", font=FONT, fg=MAU_BO[b]).pack(side="left", padx=4)
         tk.Button(thanh2, text="Tìm lại", width=9, command=self.tim_lai).pack(side="left", padx=4)
-        tk.Button(thanh2, text="Về 1/3 (Báo cáo 1)", command=self.ve_mac_dinh).pack(side="left", padx=4)
+        tk.Button(thanh2, text="Về 1/3 (Báo cáo 2)", command=self.ve_mac_dinh).pack(side="left", padx=4)
         self.nhan_ts = tk.Label(thanh2, text="", font=FONT, justify="left")
         self.nhan_ts.pack(side="left", padx=8)
 
@@ -249,7 +249,7 @@ class App:
             self.root.config(cursor="")
 
     def trong_so_thu(self):
-        """Trọng số trên thanh trượt. Ba giá trị bằng nhau -> None (dùng trọng số trong CSDL);
+        """Trọng số trên thanh trượt. Ba giá trị bằng nhau -> None (dùng trọng số mặc định 1/3);
         ngược lại chuẩn hóa w_b / (w_hh + w_kc + w_ms) để tổng bằng 1."""
         w = {b: self.w[b].get() for b in F.BO}
         if max(w.values()) - min(w.values()) < 1e-9:
@@ -267,7 +267,7 @@ class App:
         con.close()
         r["xh"], r["ts_thu"] = xh, ts
         if ts is None:
-            self.nhan_ts.config(text="Trọng số trong CSDL:\n1/3 mỗi bộ (đúng Báo cáo 1)", fg="#2a6a2a")
+            self.nhan_ts.config(text="Trọng số mặc định:\n1/3 mỗi bộ (đúng Báo cáo 2)", fg="#2a6a2a")
         else:
             self.nhan_ts.config(text="Đang THỬ trọng số " + " / ".join(so(ts[b], 2) for b in F.BO)
                                      + "\n(chuẩn hóa tổng = 1), không ghi vào CSDL", fg="#b00020")
@@ -661,7 +661,7 @@ class App:
             ghi(f"   ({KY_HIEU_BO[b]} của {ma} nhỏ hơn {so(gan_hon, 1)}% số ảnh trong CSDL)")
 
         ghi()
-        ghi("BƯỚC 2. KHOẢNG CÁCH CHUNG (trọng số 1/3 mỗi bộ, Báo cáo 1)" if r["ts_thu"] is None
+        ghi("BƯỚC 2. KHOẢNG CÁCH CHUNG (trọng số 1/3 mỗi bộ, Báo cáo 2)" if r["ts_thu"] is None
             else "BƯỚC 2. KHOẢNG CÁCH CHUNG (đang THỬ trọng số trên thanh trượt)", "muc")
         ghi("   D = " + " + ".join(f"{self.ts_chu(b)} × {KY_HIEU_BO[b]}" for b in F.BO))
         ghi("     = " + " + ".join(f"{self.ts_chu(b)} × {so(d_rieng[b], 4)}" for b in F.BO))
