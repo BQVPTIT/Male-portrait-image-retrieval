@@ -147,16 +147,22 @@ def tao_csdl(db_path=C.DB_PATH):
 
 
 # ---------------------------------------------------------------- đọc dữ liệu
+# Các lệnh SELECT mà bước tìm kiếm dùng (app.py hiện lại đúng các lệnh này)
+SQL_DAC_TRUNG = "SELECT ma_anh, " + ", ".join(F.FEATURE_NAMES) + " FROM dac_trung ORDER BY ma_anh"
+SQL_MIN_MAX = "SELECT ten_cot, gia_tri_min, gia_tri_max FROM thuoc_tinh"
+SQL_TRONG_SO = "SELECT ma_bo, trong_so FROM bo_thuoc_tinh"
+SQL_ANH = "SELECT ma_anh, duong_dan, rong, cao, dinh_dang, ngay_nap FROM anh WHERE ma_anh = ?"
+
+
 def doc_dac_trung(con):
     """SELECT toàn bộ bảng dac_trung -> (danh sách mã ảnh, ma trận N x 39 giá trị gốc)."""
-    cot = ", ".join(F.FEATURE_NAMES)
-    rows = con.execute(f"SELECT ma_anh, {cot} FROM dac_trung ORDER BY ma_anh").fetchall()
+    rows = con.execute(SQL_DAC_TRUNG).fetchall()
     return [r[0] for r in rows], np.array([r[1:] for r in rows], dtype=np.float64)
 
 
 def doc_min_max(con):
     """min, max của 39 cột (bảng thuoc_tinh), xếp đúng thứ tự FEATURE_NAMES."""
-    bang = {r[0]: r[1:] for r in con.execute("SELECT ten_cot, gia_tri_min, gia_tri_max FROM thuoc_tinh")}
+    bang = {r[0]: r[1:] for r in con.execute(SQL_MIN_MAX)}
     mm = np.array([bang[ten] for ten in F.FEATURE_NAMES], dtype=np.float64)
     return mm[:, 0], mm[:, 1]
 
@@ -170,13 +176,12 @@ def doc_thuoc_tinh(con):
 
 def doc_trong_so(con):
     """Trọng số của từng bộ thuộc tính (bảng bo_thuoc_tinh) -> {ma_bo: trọng số}."""
-    return dict(con.execute("SELECT ma_bo, trong_so FROM bo_thuoc_tinh").fetchall())
+    return dict(con.execute(SQL_TRONG_SO).fetchall())
 
 
 def doc_anh(con, ma_anh):
     """Thông tin chung của một ảnh (bảng anh) -> dict, hoặc None nếu không có."""
-    r = con.execute("SELECT ma_anh, duong_dan, rong, cao, dinh_dang, ngay_nap FROM anh WHERE ma_anh = ?",
-                    (ma_anh,)).fetchone()
+    r = con.execute(SQL_ANH, (ma_anh,)).fetchone()
     return None if r is None else dict(zip(["ma_anh", "duong_dan", "rong", "cao", "dinh_dang", "ngay_nap"], r))
 
 

@@ -43,17 +43,21 @@ def to_gray(rgb):
 
 
 # ---------------------------------------------------------------- độ nét
-def laplacian_var(gray):
-    """Độ nét = phương sai của ảnh sau khi lọc Laplace.
-
-    Laplace (mặt nạ [[0,1,0],[1,-4,1],[0,1,0]]):
+def laplacian(gray):
+    """Ảnh sau khi lọc Laplace (mặt nạ [[0,1,0],[1,-4,1],[0,1,0]]):
         L(x,y) = I(x,y-1) + I(x-1,y) + I(x+1,y) + I(x,y+1) - 4*I(x,y)
-    Độ nét = (1/N) * tổng (L_i - trung bình L)^2
-    Chỉ tính cho các điểm bên trong (bỏ viền 1 pixel vì thiếu lân cận).
+    Chỉ tính cho các điểm bên trong (bỏ viền 1 pixel vì thiếu lân cận) -> ảnh (H-2) x (W-2).
     """
     g = gray.astype(np.float64)
     tam = g[1:-1, 1:-1]
-    L = g[:-2, 1:-1] + g[1:-1, :-2] + g[1:-1, 2:] + g[2:, 1:-1] - 4.0 * tam
+    return g[:-2, 1:-1] + g[1:-1, :-2] + g[1:-1, 2:] + g[2:, 1:-1] - 4.0 * tam
+
+
+def laplacian_var(gray):
+    """Độ nét = phương sai của ảnh sau khi lọc Laplace:
+        Độ nét = (1/N) * tổng (L_i - trung bình L)^2      (L tính bằng laplacian ở trên)
+    """
+    L = laplacian(gray)
     return float(np.mean((L - L.mean()) ** 2))
 
 

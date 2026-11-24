@@ -215,7 +215,7 @@ def face_mask(pts):
 
 
 # ---------------------------------------------------------------- xử lý 1 ảnh
-def process_one(path):
+def process_one(path, giu_trung_gian=False):
     """Chạy B1 -> B6 cho một ảnh. Trả về dict:
 
         dat (True/False), ly_do, so_mat, diem_mat (điểm SVM của khung mặt), do_net,
@@ -226,6 +226,8 @@ def process_one(path):
         và nếu đạt: rgb (ảnh màu đã căn chỉnh, lọc nền), gray (ảnh xám đã căn chỉnh),
         pts (68 điểm mốc sau căn chỉnh).
     Dùng chung cho ảnh trong CSDL và ảnh truy vấn: cả hai qua đủ các bước kiểm tra.
+    giu_trung_gian=True (dùng cho app.py): giữ thêm kq["trung_gian"] gồm ảnh của từng bước
+    (rgb_tho, gray_tho, khung, pts_tho, rgb_can_chinh, mat_na) để hiển thị. Không đổi kết quả.
     """
     kq = {"dat": False, "ly_do": ""}
     kq.update({c: "" for c in COT_LOG[2:]})
@@ -268,6 +270,7 @@ def process_one(path):
 
     # B5 - căn chỉnh theo hai mắt
     #   theta = atan2(y_phải - y_trái, x_phải - x_trái);  s = D_MAT / d(mắt trái, mắt phải)
+    rgb_tho, gray_tho = rgb, gray                              # giữ ảnh B1, B2 (chỉ để hiển thị)
     trai, phai = C.eye_centers(pts)
     theta = np.arctan2(phai[1] - trai[1], phai[0] - trai[0])
     s = C.D_MAT / C.dist(trai, phai)
@@ -276,6 +279,7 @@ def process_one(path):
     kq["he_so"] = s
     co_du_lieu = C.align_image(np.ones((C.SIZE, C.SIZE)), theta, s, m, fill=0.0) > 0.5
     rgb = np.clip(np.round(C.align_image(rgb, theta, s, m)), 0, 255).astype(np.uint8)
+    pts_tho = pts
     pts = np.round(C.align_points(pts, theta, s, m), 3)        # điểm mốc đi theo cùng công thức
     gray = np.round(C.to_gray(rgb)).astype(np.uint8)           # ảnh xám của ảnh đã căn chỉnh
 
@@ -283,6 +287,9 @@ def process_one(path):
     mat = face_mask(pts)
     kq["ti_le_mat"] = float(mat.mean())
     kq["thieu"] = float((mat & ~co_du_lieu).sum() / max(mat.sum(), 1))
+    if giu_trung_gian:
+        kq["trung_gian"] = dict(rgb_tho=rgb_tho, gray_tho=gray_tho, khung=khung,
+                                pts_tho=pts_tho, rgb_can_chinh=rgb.copy(), mat_na=mat & co_du_lieu)
     rgb[~(mat & co_du_lieu)] = 255
 
     kq.update(dat=True, rgb=rgb, gray=gray, pts=pts)

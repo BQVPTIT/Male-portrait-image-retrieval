@@ -90,22 +90,26 @@ def distances(q, Xn, trong_so):
     return D, d_bo
 
 
-def xep_hang(v, bo_qua=None):
+def xep_hang(v, bo_qua=None, trong_so=None):
     """So vector gốc v (39 chiều) với MỌI ảnh trong CSDL, giữ lại các kết quả trung gian.
 
-    Trả về dict: ids, Xn (vector CSDL đã chuẩn hóa), q (v đã chuẩn hóa), trong_so, d_bo (D từng bộ),
-    D, S (mảng cho mọi ảnh), top (chỉ số TOP_K ảnh có S lớn nhất, giảm dần),
-    con_lai (mặt nạ các ảnh được xét, tức trừ ảnh bo_qua).
+    trong_so: None -> đọc từ bảng bo_thuoc_tinh (1/3 mỗi bộ). Truyền dict khác chỉ để THỬ trên
+    giao diện (app.py), không ghi vào CSDL.
+    Trả về dict: ids, X (vector gốc của CSDL), mn, mx, Xn (vector CSDL đã chuẩn hóa), q (v đã chuẩn
+    hóa), trong_so, d_bo (D từng bộ), D, S (mảng cho mọi ảnh), top (chỉ số TOP_K ảnh có S lớn nhất,
+    giảm dần), con_lai (mặt nạ các ảnh được xét, tức trừ ảnh bo_qua).
     """
     ids, X = load_features()
     mn, mx = load_norm()
-    trong_so = load_weights()
+    if trong_so is None:
+        trong_so = load_weights()
     q, Xn = normalize(v, mn, mx), normalize(X, mn, mx)
     D, d_bo = distances(q, Xn, trong_so)
     S = 1.0 / (1.0 + D)
     con_lai = np.array([m != bo_qua for m in ids])
     top = [i for i in np.argsort(-S, kind="stable") if con_lai[i]][:TOP_K]
-    return dict(ids=ids, Xn=Xn, q=q, trong_so=trong_so, d_bo=d_bo, D=D, S=S, top=top, con_lai=con_lai)
+    return dict(ids=ids, X=X, mn=mn, mx=mx, Xn=Xn, q=q, trong_so=trong_so, d_bo=d_bo, D=D, S=S,
+                top=top, con_lai=con_lai)
 
 
 def search_vector(v, bo_qua=None):
