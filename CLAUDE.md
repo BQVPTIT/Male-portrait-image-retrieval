@@ -23,7 +23,7 @@ BTL môn Hệ CSDL đa phương tiện (PTIT, GV Nguyễn Đình Hóa), nhóm 19
   - **Kết cấu (2):** phương sai LBP vùng cằm–miệng (điểm 33, 54, 12, 8, 4, 48); mật độ lông mày (Otsu + LBP khác 0 và 255).
   - **Màu (32):** lược đồ H×S trên mặt nạ da (2 má + trán); H chia 8 ô trong 0–40°, S chia 4 ô.
 - `search.py`: chuẩn hóa min-max (lưu `norm_params.json`); khoảng cách Euclid tính riêng từng bộ, chia √(số chiều), trọng số 1/3; S = 1/(1+D), lấy top-5. Vector, min/max, trọng số đọc từ CSDL.
-- `database.py`: CSDL SQLite `data/khuon_mat.db`, 4 bảng `anh`, `dac_trung`, `bo_thuoc_tinh`, `thuoc_tinh`; kiểm tra toàn vẹn; thêm ảnh mới.
+- `database.py`: CSDL SQLite `data/khuon_mat.db`, 2 bảng `anh` 1–1 `dac_trung` (khóa ngoại `ma_anh`); min/max ở `norm_params.json`, trọng số 1/3 là hằng số `search.TRONG_SO` (chốt 24/11/2026); kiểm tra toàn vẹn; thêm ảnh mới.
 - `app.py`: giao diện Tkinter; `danh_gia.py`: phép thử ảnh biến đổi.
 - `run_all.ipynb`: chạy toàn bộ.
 

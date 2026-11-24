@@ -29,6 +29,16 @@ FEATURE_NAMES = TEN_HINH_HOC + TEN_KET_CAU + TEN_MAU       # 5 + 2 + 32 = 39 tê
 # vị trí của từng bộ trong vector 39 chiều (dùng lại ở search.py)
 BO = {"hinh_hoc": slice(0, 5), "ket_cau": slice(5, 7), "mau_sac": slice(7, 39)}
 
+# tên tiếng Việt của X0 - X38 (dùng cho giao diện, đúng Bảng 2.1 Báo cáo 1)
+TEN_DAC_TRUNG = (["Tỉ lệ khung mặt", "Tỉ lệ gò má trên quai hàm", "Tỉ lệ khoảng cách hai mắt",
+                  "Tỉ lệ độ rộng cánh mũi", "Tỉ lệ chiều cao mũi",
+                  "Phương sai LBP vùng cằm - miệng", "Mật độ lông mày"]
+                 + [f"Color Histogram vùng da, ô H{i} - ô S{j}" for i in range(SO_O_H) for j in range(SO_O_S)])
+
+# vai trò theo Bảng 2.1 Báo cáo 1: X0, X1 (dáng mặt) và X7 - X38 (tông da) tìm sự tương đồng;
+# X2 - X4 (tỉ lệ ngũ quan) và X5, X6 (bề mặt) tìm sự khác biệt.
+VAI_TRO = ["tuong_dong"] * 2 + ["khac_biet"] * 5 + ["tuong_dong"] * 32
+
 
 # ---------------------------------------------------------------- hình học
 def geometric_features(pts):

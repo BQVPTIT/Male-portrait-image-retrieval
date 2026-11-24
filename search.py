@@ -2,15 +2,14 @@
 search.py - Chuẩn hóa đặc trưng và tìm 5 ảnh giống ảnh truy vấn nhất.
 
     1. Chuẩn hóa min-max từng chiều:  x' = (x - min) / (max - min)
-       (min, max tính trên toàn bộ CSDL, lưu ở bảng thuoc_tinh để dùng lại cho ảnh truy vấn)
+       (min, max tính một lần trên toàn bộ CSDL, lưu ở data/norm_params.json để dùng lại cho ảnh truy vấn)
     2. Khoảng cách riêng cho từng bộ thuộc tính, chia căn số chiều để 3 bộ cùng thang:
            D_bộ = sqrt( tổng_i (q_i - x_i)^2 ) / sqrt(n_bộ)       n = 5, 2, 32
-    3. Khoảng cách chung:  D = (1/3)*D_hình_học + (1/3)*D_kết_cấu + (1/3)*D_màu_sắc
-       (trọng số lưu ở bảng bo_thuoc_tinh)
+    3. Khoảng cách chung:  D = (D_hình_học + D_kết_cấu + D_màu_sắc) / 3     (trọng số TRONG_SO = 1/3)
     4. Độ tương đồng:      S = 1 / (1 + D)   (D = 0 -> S = 1; D càng lớn S càng gần 0)
     5. Sắp xếp S giảm dần, lấy 5 ảnh đầu.
 
-Vector đặc trưng, min, max và trọng số đều đọc từ CSDL SQLite (database.py).
+Vector đặc trưng đọc từ bảng dac_trung của CSDL SQLite (database.py).
 
 Chạy:  python search.py duong_dan_anh_truy_van.jpg
 """
@@ -24,6 +23,7 @@ import features as F
 import database as DB
 
 TOP_K = 5
+TRONG_SO = {"hinh_hoc": 1 / 3, "ket_cau": 1 / 3, "mau_sac": 1 / 3}    # Báo cáo 1, mục 2.6
 
 
 def load_features():
@@ -36,10 +36,7 @@ def load_features():
 
 
 def fit_norm(X):
-    """Tính min, max từng chiều trên toàn bộ CSDL và lưu vào norm_params.json.
-
-    database.tao_csdl chép hai giá trị này vào cột gia_tri_min, gia_tri_max của bảng thuoc_tinh.
-    """
+    """Tính min, max từng chiều trên toàn bộ CSDL và lưu vào norm_params.json (chạy một lần)."""
     mn, mx = X.min(axis=0), X.max(axis=0)
     with open(C.NORM_JSON, "w", encoding="utf-8") as f:
         json.dump({"ten": F.FEATURE_NAMES, "min": mn.tolist(), "max": mx.tolist()}, f, indent=1)
@@ -47,21 +44,13 @@ def fit_norm(X):
 
 
 def load_norm():
-    """Đọc min, max của 39 chiều từ bảng thuoc_tinh."""
-    con = DB.ket_noi()
-    try:
-        return DB.doc_min_max(con)
-    finally:
-        con.close()
+    """Đọc min, max của 39 chiều từ data/norm_params.json."""
+    return DB.doc_min_max()
 
 
 def load_weights():
-    """Đọc trọng số của 3 bộ thuộc tính từ bảng bo_thuoc_tinh."""
-    con = DB.ket_noi()
-    try:
-        return DB.doc_trong_so(con)
-    finally:
-        con.close()
+    """Trọng số của 3 bộ thuộc tính (1/3 mỗi bộ)."""
+    return dict(TRONG_SO)
 
 
 def normalize(X, mn, mx):
@@ -93,8 +82,7 @@ def distances(q, Xn, trong_so):
 def xep_hang(v, bo_qua=None, trong_so=None):
     """So vector gốc v (39 chiều) với MỌI ảnh trong CSDL, giữ lại các kết quả trung gian.
 
-    trong_so: None -> đọc từ bảng bo_thuoc_tinh (1/3 mỗi bộ). Truyền dict khác chỉ để THỬ trên
-    giao diện (app.py), không ghi vào CSDL.
+    trong_so: None -> TRONG_SO (1/3 mỗi bộ). Truyền dict khác chỉ để THỬ trên giao diện (app.py).
     Trả về dict: ids, X (vector gốc của CSDL), mn, mx, Xn (vector CSDL đã chuẩn hóa), q (v đã chuẩn
     hóa), trong_so, d_bo (D từng bộ), D, S (mảng cho mọi ảnh), top (chỉ số TOP_K ảnh có S lớn nhất,
     giảm dần), con_lai (mặt nạ các ảnh được xét, tức trừ ảnh bo_qua).

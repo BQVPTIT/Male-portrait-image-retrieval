@@ -9,7 +9,7 @@ kèm các kết quả trung gian để giải thích từng bước.
                                        d(mắt trái, mắt phải), d(P31,P35), dY(P27,P33).
     Vùng kết cấu, mặt nạ da          : tô vùng cằm - miệng (X5), vùng lông mày (X6), vùng da 2 má + trán
                                        (X7 - X38), đúng các mặt nạ mà features.py dùng.
-    Trọng số 3 bộ                    : mặc định đọc từ bảng bo_thuoc_tinh (1/3 mỗi bộ). Kéo thanh trượt rồi
+    Trọng số 3 bộ                    : mặc định 1/3 mỗi bộ (search.TRONG_SO, Báo cáo 1). Kéo thanh trượt rồi
                                        bấm "Tìm lại" để THỬ trọng số khác (chuẩn hóa cho tổng = 1); trọng số
                                        thử không ghi vào CSDL.
 
@@ -145,10 +145,8 @@ class App:
         self.ids, _ = S.load_features()
         self.vi_tri = {m: i for i, m in enumerate(self.ids)}
         self.lm = F.read_landmarks()
-        con = DB.ket_noi()
-        self.tt = DB.doc_thuoc_tinh(con)          # từ điển đặc trưng: ký hiệu, tên, vai trò (Bảng 2.1)
-        self.ts_db = DB.doc_trong_so(con)         # trọng số 3 bộ trong CSDL (1/3)
-        con.close()
+        self.tt = DB.doc_thuoc_tinh()             # mô tả đặc trưng: ký hiệu, tên, vai trò (Bảng 2.1)
+        self.ts_db = S.load_weights()             # trọng số 3 bộ (1/3, Báo cáo 1)
         self.tuong_dong = [k for k in range(7) if self.tt[k]["vai_tro"] == "tuong_dong"]    # X0, X1
         self.khac_biet = [k for k in range(7) if self.tt[k]["vai_tro"] == "khac_biet"]      # X2 - X6
         preprocess.detect_landmarks(np.zeros((64, 64), dtype=np.uint8))     # nạp sẵn mô hình dlib
@@ -314,7 +312,7 @@ class App:
         return np.array(Image.open(os.path.join(C.ALIGNED_DIR, ma + ".jpg")).convert("RGB")), self.lm.get(ma)
 
     def ten(self, k):
-        """Ký hiệu + tên đặc trưng thứ k, lấy từ bảng thuoc_tinh (ví dụ "X0 tỉ lệ khung mặt")."""
+        """Ký hiệu + tên đặc trưng thứ k (ví dụ "X0 tỉ lệ khung mặt")."""
         return f"{self.tt[k]['ky_hieu']} {self.tt[k]['ten_dac_trung'][0].lower()}{self.tt[k]['ten_dac_trung'][1:]}"
 
     def tieu_de(self, cha, chu, nen):
@@ -565,16 +563,14 @@ class App:
         sql1 = DB.SQL_DAC_TRUNG.replace(", ".join(ten), f"{ten[0]}, {ten[1]}, …, {ten[-1]}")
         dong = ["-- 1) Vector đặc trưng (giá trị gốc) của mọi ảnh:", sql1 + ";",
                 f"--    → {len(xh['ids'])} hàng × {len(ten)} cột REAL", "",
-                "-- 2) min, max của từng cột để chuẩn hóa min-max:", DB.SQL_MIN_MAX + ";",
-                f"--    → {len(ten)} hàng", "",
-                "-- 3) Trọng số của 3 bộ thuộc tính:", DB.SQL_TRONG_SO + ";"]
-        if r["ts_thu"] is None:
-            dong.append("--    → 3 hàng: " + ", ".join(f"{b} = {so(self.ts_db[b])}" for b in F.BO))
-        else:
-            dong.append("--    → KHÔNG chạy lần này: đang thử trọng số trên thanh trượt")
-        dong += ["", f"-- 4) Thông tin 5 ảnh kết quả (chạy {len(top)} lần):", DB.SQL_ANH + ";"]
+                f"-- 2) Thông tin 5 ảnh kết quả, tra bảng anh theo ma_anh (chạy {len(top)} lần):"]
+        dong += [DB.SQL_ANH + ";"]
         dong += [f"--    ? = '{a['ma_anh']}' → {a['duong_dan']} ({a['rong']}×{a['cao']} {a['dinh_dang']})"
                  for a in r["anh_top"]]
+        dong += ["", "-- Không đọc từ CSDL (tham số tìm kiếm, không phải dữ liệu của ảnh):",
+                 f"--   min, max {len(ten)} cột: data/norm_params.json (= MIN(), MAX() của dac_trung)",
+                 "--   trọng số 3 bộ: " + (", ".join(f"{b} = {so(self.ts_db[b])}" for b in F.BO)
+                                         if r["ts_thu"] is None else "đang THỬ trên thanh trượt")]
         dong += ["", "-- Ảnh truy vấn chỉ tính vector trong bộ nhớ, không ghi vào CSDL.",
                  f"-- So 1 vector truy vấn với {len(xh['ids'])} vector bằng numpy (search.py)."]
         txt.insert("1.0", "\n".join(dong))
@@ -627,7 +623,7 @@ class App:
         so4 = lambda k, t: so(t, 1) if k == 5 else so(t, 4)
 
         ghi("BƯỚC 1. CHUẨN HÓA MIN-MAX TỪNG CHIỀU", "muc")
-        ghi("   x' = (x − min) / (max − min), kẹp vào [0, 1].  min, max của từng cột đọc từ bảng thuoc_tinh,")
+        ghi("   x' = (x − min) / (max − min), kẹp vào [0, 1].  min, max của từng cột đọc từ norm_params.json,")
         ghi(f"   tính trên toàn bộ {len(xh['ids'])} ảnh của CSDL. q' là giá trị chuẩn hóa của ảnh truy vấn, x' của ảnh {ma}.")
         tieu = (f"   {'Ký hiệu':<7} {'Đặc trưng':<34} {'min':>9} {'max':>9} | {'x truy vấn':>10} {'q_':>7} |"
                 f" {'x ' + ma:>14} {'x_':>7} | {'(q_ − x_)²':>11}").replace("q_", "q'").replace("x_", "x'")
@@ -665,7 +661,7 @@ class App:
             ghi(f"   ({KY_HIEU_BO[b]} của {ma} nhỏ hơn {so(gan_hon, 1)}% số ảnh trong CSDL)")
 
         ghi()
-        ghi("BƯỚC 2. KHOẢNG CÁCH CHUNG (trọng số đọc từ bảng bo_thuoc_tinh)" if r["ts_thu"] is None
+        ghi("BƯỚC 2. KHOẢNG CÁCH CHUNG (trọng số 1/3 mỗi bộ, Báo cáo 1)" if r["ts_thu"] is None
             else "BƯỚC 2. KHOẢNG CÁCH CHUNG (đang THỬ trọng số trên thanh trượt)", "muc")
         ghi("   D = " + " + ".join(f"{self.ts_chu(b)} × {KY_HIEU_BO[b]}" for b in F.BO))
         ghi("     = " + " + ".join(f"{self.ts_chu(b)} × {so(d_rieng[b], 4)}" for b in F.BO))

@@ -9,7 +9,7 @@ common.py        các phép xử lý ảnh tự code bằng numpy
 preprocess.py    tiền xử lý 6 bước: đọc → xám → độ nét → mặt + 68 điểm mốc → căn chỉnh → lọc nền;
                  làm vuông ảnh truy vấn chưa đúng 256×256
 features.py      vector đặc trưng 39 chiều (5 hình học + 2 kết cấu + 32 màu)
-database.py      CSDL SQLite 4 bảng (anh, dac_trung, bo_thuoc_tinh, thuoc_tinh): tạo, nạp, kiểm tra, thêm ảnh
+database.py      CSDL SQLite 2 bảng (anh 1–1 dac_trung qua khóa ngoại ma_anh): tạo, nạp, kiểm tra, thêm ảnh
 search.py        chuẩn hóa min-max, khoảng cách từng bộ, S = 1/(1+D), top-5 (đọc dữ liệu từ CSDL)
 danh_gia.py      phép thử ảnh biến đổi (8 kiểu × 1005 ảnh) → data/danh_gia.csv
 app.py           giao diện demo Tkinter
