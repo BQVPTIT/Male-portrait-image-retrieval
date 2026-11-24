@@ -1,14 +1,13 @@
 """
 features.py - Trích rút vector đặc trưng 39 chiều cho một ảnh đã tiền xử lý.
 
-    Hình học (5)  : 5 tỉ lệ khoảng cách giữa các điểm mốc
-    Kết cấu  (2)  : phương sai LBP vùng cằm - miệng, mật độ lông mày
-    Màu sắc  (32) : lược đồ H x S (8 x 4 ô) trên mặt nạ da (2 má + trán)
-
-Đầu vào: ảnh màu đã căn chỉnh + lọc nền (rgb), ảnh xám đã căn chỉnh (gray), 68 điểm mốc (pts).
-Giá trị lưu trong data/features.csv là giá trị GỐC (chưa chuẩn hóa); chuẩn hóa làm ở search.py.
-
-Chạy:  python features.py
+- Ba bộ thuộc tính (Báo cáo 1, Phần 2):
+  + Hình học (5)  X0 – X4  : tỉ số khoảng cách giữa các điểm mốc (dáng mặt, tỉ lệ ngũ quan)
+  + Kết cấu  (2)  X5, X6   : phương sai LBP vùng cằm – miệng, mật độ lông mày
+  + Màu sắc  (32) X7 – X38 : Color Histogram H x S (8 x 4 ô) trên vùng da (2 má + trán)
+- Đầu vào: ảnh màu đã căn chỉnh + lọc nền (rgb), ảnh xám đã căn chỉnh (gray), 68 điểm mốc (pts).
+- Đầu ra: data/features.csv lưu giá trị GỐC (chưa chuẩn hóa); chuẩn hóa làm ở search.py.
+- Chạy:  python features.py
 """
 import os
 import csv
@@ -42,40 +41,57 @@ VAI_TRO = ["tuong_dong"] * 2 + ["khac_biet"] * 5 + ["tuong_dong"] * 32
 
 # ---------------------------------------------------------------- hình học
 def geometric_features(pts):
-    """5 đặc trưng hình học. d = khoảng cách Euclid, dY = |y_P - y_Q| (theo trục đứng).
-
-        a. geo_khung_mat = d(P0, P16) / dY(P27, P8)              rộng mặt / cao mặt
-        b. geo_goma_ham  = d(P0, P16) / d(P4, P12)               rộng gò má / rộng hàm
-        c. geo_kc_mat    = d(mắt trái, mắt phải) / d(P0, P16)    khoảng cách mắt / rộng mặt
-        d. geo_rong_mui  = d(P31, P35) / d(mắt trái, mắt phải)   rộng cánh mũi / khoảng cách mắt
-        e. geo_cao_mui   = dY(P27, P33) / dY(P27, P8)            cao mũi / cao mặt
-    Tâm mắt = trung bình 6 điểm quanh mắt (36-41 và 42-47).
+    """
+    - File: features.py. Dùng để: tính 5 đặc trưng hình học X0 – X4.
+    - Dựa trên: tỉ số hai khoảng cách giữa điểm mốc (d: Euclid, dY: theo trục đứng)
+      + X0 = d(P0,P16)/dY(P27,P8), X1 = d(P0,P16)/d(P4,P12)
+      + X2 = d(hai tâm mắt)/d(P0,P16), X3 = d(P31,P35)/d(hai tâm mắt)
+      + X4 = dY(P27,P33)/dY(P27,P8)
+    - Ứng dụng: tỉ số không đổi khi mặt to, nhỏ; X0, X1 tìm tương đồng, X2 – X4 tìm khác biệt.
+    - Cách khác: đo khoảng cách tuyệt đối (phụ thuộc cỡ mặt).
     """
     trai, phai = C.eye_centers(pts)
-    rong_mat = C.dist(pts[0], pts[16])
-    cao_mat = abs(pts[27][1] - pts[8][1])
-    rong_ham = C.dist(pts[4], pts[12])
-    kc_mat = C.dist(trai, phai)
-    rong_mui = C.dist(pts[31], pts[35])
-    cao_mui = abs(pts[27][1] - pts[33][1])
-    return [rong_mat / cao_mat, rong_mat / rong_ham, kc_mat / rong_mat,
-            rong_mui / kc_mat, cao_mui / cao_mat]
+    rong_mat = C.dist(pts[0], pts[16])           # bề rộng mặt ngang thái dương
+    cao_mat = abs(pts[27][1] - pts[8][1])        # chiều cao từ gốc mũi đến đỉnh cằm
+    rong_ham = C.dist(pts[4], pts[12])           # bề rộng hai góc quai hàm
+    kc_mat = C.dist(trai, phai)                  # khoảng cách hai tâm mắt
+    rong_mui = C.dist(pts[31], pts[35])          # bề ngang hai cánh mũi
+    cao_mui = abs(pts[27][1] - pts[33][1])       # chiều dài mũi
+    x0 = rong_mat / cao_mat
+    x1 = rong_mat / rong_ham
+    x2 = kc_mat / rong_mat
+    x3 = rong_mui / kc_mat
+    x4 = cao_mui / cao_mat
+    return [x0, x1, x2, x3, x4]
 
 
 # ---------------------------------------------------------------- các vùng trên mặt
 def chin_region(pts):
-    """Vùng cằm - miệng: đa giác qua các điểm 33 (đáy mũi), 54, 12, 8, 4, 48."""
+    """
+    - File: features.py. Dùng để: tạo mặt nạ vùng cằm – miệng.
+    - Dựa trên: đa giác nối 6 điểm mốc
+      + P33 (đáy mũi), P54 và P48 (hai khóe miệng), P12 và P4 (quai hàm), P8 (đỉnh cằm)
+      + tô đa giác bằng quy tắc chẵn – lẻ (common.polygon_mask)
+    - Ứng dụng: vùng tính X5 (phương sai LBP), phân biệt cằm – miệng nhẵn hay nhiều chi tiết.
+    - Cách khác: hình chữ nhật bao quanh miệng, đơn giản hơn nhưng lẫn má và nền.
+    """
     return C.polygon_mask(pts[[33, 54, 12, 8, 4, 48]])
 
 
 def brow_regions(pts):
-    """Hai vùng lông mày: hộp bao các điểm 17-21 (trái ảnh) và 22-26 (phải ảnh),
-    nới lên và xuống 0,15 x khoảng cách hai mắt để lấy trọn bề dày lông mày."""
+    """
+    - File: features.py. Dùng để: tạo hai mặt nạ vùng lông mày (trái, phải ảnh).
+    - Dựa trên: hộp chữ nhật bao các điểm mốc lông mày
+      + trái ảnh: điểm 17 – 21; phải ảnh: điểm 22 – 26
+      + nới lên và xuống 0,15 x khoảng cách hai mắt (9,6 px) để lấy trọn bề dày lông mày
+    - Ứng dụng: vùng tính X6 (mật độ lông mày).
+    - Cách khác: đa giác ôm sát lông mày, chính xác hơn nhưng phức tạp và dễ hụt.
+    """
     trai, phai = C.eye_centers(pts)
     noi = 0.15 * C.dist(trai, phai)
     ys, xs = np.mgrid[0:C.SIZE, 0:C.SIZE]
     vung = []
-    for nhom in (pts[17:22], pts[22:27]):
+    for nhom in (pts[17:22], pts[22:27]):        # lông mày trái ảnh, rồi phải ảnh
         x1, x2 = nhom[:, 0].min(), nhom[:, 0].max()
         y1, y2 = nhom[:, 1].min() - noi, nhom[:, 1].max() + noi
         vung.append((xs >= x1) & (xs <= x2) & (ys >= y1) & (ys <= y2))
@@ -83,115 +99,140 @@ def brow_regions(pts):
 
 
 def skin_mask(pts):
-    """Mặt nạ da = má trái + má phải + trán (không chứa mắt, lông mày, mũi, miệng).
-
-        má trái : đa giác qua các điểm 1, 2, 3, 31, 40, 41
-        má phải : đa giác qua các điểm 15, 14, 13, 35, 47, 46
-        trán    : hình chữ nhật, ngang từ x(P19) đến x(P24) (đỉnh hai lông mày),
-                  dọc từ (đỉnh lông mày - 0,45*d) đến (đỉnh lông mày - 0,10*d), d = khoảng cách hai mắt.
-                  0,10*d: chừa mép trên lông mày; 0,45*d: nằm trong mặt nạ khuôn mặt (0,6*d).
+    """
+    - File: features.py. Dùng để: tạo mặt nạ vùng da để tính màu.
+    - Dựa trên: ghép 3 vùng từ điểm mốc
+      + má trái: đa giác điểm 1, 2, 3, 31, 40, 41; má phải: 15, 14, 13, 35, 47, 46
+      + trán: chữ nhật từ x(P19) đến x(P24), cách đỉnh lông mày 0,10 – 0,45 lần khoảng cách hai mắt
+    - Ứng dụng: Color Histogram chỉ đo màu da, không lẫn mắt, lông mày, miệng.
+    - Cách khác: lọc da theo ngưỡng màu, dễ lẫn tóc và nền.
     """
     trai, phai = C.eye_centers(pts)
     d = C.dist(trai, phai)
     ma = C.polygon_mask(pts[[1, 2, 3, 31, 40, 41]]) | C.polygon_mask(pts[[15, 14, 13, 35, 47, 46]])
     ys, xs = np.mgrid[0:C.SIZE, 0:C.SIZE]
-    dinh = pts[17:27, 1].min()
+    dinh = pts[17:27, 1].min()                   # đỉnh cao nhất của hai lông mày
     tran = (xs >= pts[19, 0]) & (xs <= pts[24, 0]) & (ys >= dinh - 0.45 * d) & (ys <= dinh - 0.10 * d)
     return ma | tran
 
 
 # ---------------------------------------------------------------- kết cấu
 def texture_features(gray, pts, co_du_lieu):
-    """2 đặc trưng kết cấu, tính trên ảnh xám qua mã LBP (common.lbp).
-
-    a. tex_lbp_cam: phương sai các mã LBP trong vùng cằm - miệng
-           sigma^2 = (1/N) * tổng (c_i - trung bình)^2
-       Miền giá trị [0 ; 127,5^2 = 16256,25] (lớn nhất khi nửa số mã = 0, nửa = 255).
-    b. tex_long_may: mật độ lông mày = số điểm "sợi lông" / tổng số điểm của vùng, trung bình
-       hai bên. Một điểm là "sợi lông" khi (1) tối hơn hoặc bằng ngưỡng Otsu tính riêng trong
-       vùng đó VÀ (2) mã LBP khác 0 và 255 (không phải vùng phẳng). Miền giá trị [0 ; 1].
-    co_du_lieu: mặt nạ các điểm ảnh có dữ liệu thật (không phải phần trắng thêm vào khi căn chỉnh).
+    """
+    - File: features.py. Dùng để: tính 2 đặc trưng kết cấu X5, X6.
+    - Dựa trên: mã LBP và ngưỡng Otsu (common.py)
+      + X5 = phương sai mã LBP vùng cằm – miệng = (1/N) tổng (c_i - mu)^2, miền [0; 16256,25]
+      + X6 = số điểm "sợi lông" / số điểm vùng lông mày, trung bình hai bên, miền [0; 1]
+      + "sợi lông": tối hơn hoặc bằng ngưỡng Otsu và mã LBP khác 0, 255
+    - Ứng dụng: tìm khác biệt về bề mặt. co_du_lieu loại phần trắng thêm vào khi căn chỉnh.
+    - Cách khác: GLCM, Gabor.
     """
     ma = C.lbp(gray)
 
+    # X5: phương sai LBP trong vùng cằm - miệng
     cam = chin_region(pts) & co_du_lieu
     lbp_cam = float(np.var(ma[cam]))
 
+    # X6: mật độ lông mày, tính riêng từng bên rồi lấy trung bình
     mat_do = []
     for vung in brow_regions(pts):
         vung = vung & co_du_lieu
-        if vung.sum() == 0:
+        if vung.sum() == 0:                      # vùng rơi hết ra ngoài ảnh: bỏ qua bên này
             continue
         xam = gray[vung]
         nguong = C.otsu_threshold(xam)
         soi = (xam <= nguong) & (ma[vung] != 0) & (ma[vung] != 255)
         mat_do.append(soi.sum() / float(vung.sum()))
-    return [lbp_cam, float(np.mean(mat_do)) if mat_do else 0.0]
+    tex_long_may = float(np.mean(mat_do)) if mat_do else 0.0
+    return [lbp_cam, tex_long_may]
 
 
 # ---------------------------------------------------------------- màu sắc
 def hs_bins(h, s):
-    """Xếp từng điểm da vào ô H (0..7) và ô S (0..3).
-
-    H: 8 ô đều trong 0..40 độ (5 độ/ô). H >= 330 độ (đỏ sát 360) dồn vào ô đầu;
-       40 < H < 330 dồn vào ô cuối.
-    S: 4 ô đều trong [0, 1] (0,25/ô); S = 1 thuộc ô cuối.
     """
-    o_h = np.floor(h / (H_MAX / SO_O_H)).astype(int)
+    - File: features.py. Dùng để: xếp mỗi điểm da vào một ô H và một ô S.
+    - Dựa trên: lượng tử hóa đều trong dải màu da
+      + H: 8 ô đều trong 0 – 40 độ, mỗi ô 5 độ; H >= 330 (đỏ sát 360) vào ô đầu, 40 – 330 vào ô cuối
+      + S: 4 ô đều trong [0; 1], mỗi ô 0,25; S = 1 thuộc ô cuối
+    - Ứng dụng: tạo 32 ô của Color Histogram (X7 – X38).
+    - Cách khác: chia đều 0 – 360 độ, nhưng da chỉ nằm ở vài ô đầu.
+    """
+    o_h = np.floor(h / (H_MAX / SO_O_H)).astype(int)            # H / 5 độ -> chỉ số ô
     o_h = np.where(h >= 330.0, 0, np.clip(o_h, 0, SO_O_H - 1))
     o_s = np.clip(np.floor(s * SO_O_S).astype(int), 0, SO_O_S - 1)
     return o_h, o_s
 
 
 def color_features(rgb, pts, co_du_lieu):
-    """32 đặc trưng màu: lược đồ H x S chuẩn hóa trên mặt nạ da.
-
-        h_k = n_k / N     n_k: số điểm da rơi vào ô k, N: tổng số điểm da  ->  tổng h_k = 1
-    Thứ tự ô: k = (ô H) * 4 + (ô S), tức col_h0_s0, col_h0_s1, ..., col_h7_s3.
-    Không dùng kênh V (độ sáng) để giảm ảnh hưởng của ánh sáng lúc chụp.
+    """
+    - File: features.py. Dùng để: tính 32 đặc trưng màu X7 – X38.
+    - Dựa trên: Color Histogram chuẩn hóa (slide bài 11 tr.9; Guojun Lu tr.133–134)
+      + đổi các điểm da sang HSV, xếp vào 8 x 4 ô (H, S), bỏ kênh V
+      + h_k = n_k / N: tỉ lệ điểm da rơi vào ô k, tổng 32 giá trị bằng 1
+      + thứ tự ô k = (ô H) * 4 + (ô S)
+    - Ứng dụng: tìm tương đồng về tông da, ít phụ thuộc ánh sáng.
+    - Cách khác: color moments (trung bình, độ lệch chuẩn).
     """
     da = skin_mask(pts) & co_du_lieu
     h, s, _ = C.rgb_to_hsv(rgb[da])
     o_h, o_s = hs_bins(h, s)
-    dem = np.bincount(o_h * SO_O_S + o_s, minlength=SO_O_H * SO_O_S).astype(np.float64)
-    return list(dem / max(dem.sum(), 1.0))
+    dem = np.bincount(o_h * SO_O_S + o_s, minlength=SO_O_H * SO_O_S).astype(np.float64)   # n_k
+    return list(dem / max(dem.sum(), 1.0))                                                 # n_k / N
 
 
 # ---------------------------------------------------------------- ghép vector
 def extract(rgb, gray, pts):
-    """Vector 39 chiều (đúng thứ tự FEATURE_NAMES) của một ảnh đã tiền xử lý.
-
-    Quy ước từ bước lọc nền: điểm trắng tuyệt đối (255, 255, 255) = nền / không có dữ liệu,
-    nên không đưa vào thống kê kết cấu và màu.
+    """
+    - File: features.py. Dùng để: tạo vector 39 chiều của một ảnh đã tiền xử lý.
+    - Dựa trên: ghép 3 bộ thuộc tính theo đúng thứ tự FEATURE_NAMES
+      + 5 hình học + 2 kết cấu + 32 màu sắc = 39 giá trị gốc
+      + điểm trắng tuyệt đối (255, 255, 255) là nền, không đưa vào thống kê
+    - Ứng dụng: dùng chung cho ảnh nạp vào CSDL và ảnh truy vấn, nên hai bên được tính
+      theo cùng một cách.
+    - Cách khác: một vector duy nhất từ mạng học sâu (nhóm không dùng).
     """
     pts = np.asarray(pts, dtype=np.float64)
-    co_du_lieu = ~(rgb == 255).all(axis=2)
+    co_du_lieu = ~(rgb == 255).all(axis=2)       # True = điểm có dữ liệu thật (không phải nền trắng)
     v = geometric_features(pts) + texture_features(gray, pts, co_du_lieu) + color_features(rgb, pts, co_du_lieu)
     return np.array(v, dtype=np.float64)
 
 
 def read_prep(ma):
-    """Đọc ảnh đã tiền xử lý của một mã ảnh để XEM / vẽ hình (OpenCV trả B, G, R nên đảo kênh).
-
-    Trả về (ảnh màu, ảnh xám tính từ ảnh màu). Không dùng để tính đặc trưng, xem run().
+    """
+    - File: features.py. Dùng để: đọc ảnh đã tiền xử lý của một mã ảnh để XEM, vẽ hình.
+    - Dựa trên: đọc tệp JPG trong data/prep/aligned bằng OpenCV
+      + OpenCV trả thứ tự kênh B, G, R nên đảo lại thành R, G, B
+      + trả về (ảnh màu, ảnh xám tính bằng common.to_gray)
+    - Ứng dụng: giao diện, notebook vẽ hình.
+    - Cách khác: không dùng để tính đặc trưng, vì nén JPG làm đổi nhẹ giá trị điểm ảnh.
     """
     rgb = cv2.imread(os.path.join(C.ALIGNED_DIR, ma + ".jpg"), cv2.IMREAD_COLOR)[:, :, ::-1]
     return rgb, np.round(C.to_gray(rgb)).astype(np.uint8)
 
 
 def read_landmarks():
-    """Đọc landmarks.csv -> dict {mã ảnh: ma trận 68 x 2}."""
+    """
+    - File: features.py. Dùng để: đọc tọa độ 68 điểm mốc đã lưu của mọi ảnh.
+    - Dựa trên: tệp data/prep/landmarks.csv
+      + mỗi dòng: mã ảnh + 136 số (x0, y0, ..., x67, y67)
+      + đổi thành ma trận 68 x 2 cho từng ảnh
+    - Ứng dụng: lấy danh sách ảnh đạt tiền xử lý, vẽ điểm mốc trên giao diện.
+    - Cách khác: chạy lại dlib cho từng ảnh, chậm hơn nhiều (khoảng 3,5 phút cả bộ).
+    """
     with open(C.LANDMARK_CSV, newline="") as f:
-        rows = list(csv.reader(f))[1:]
+        rows = list(csv.reader(f))[1:]           # bỏ dòng tiêu đề
     return {r[0]: np.array(r[1:], dtype=np.float64).reshape(68, 2) for r in rows}
 
 
 def run():
-    """Trích đặc trưng cho mọi ảnh đạt tiền xử lý, lưu data/features.csv (mã ảnh + 39 cột).
-
-    Mỗi ảnh gốc được đưa qua preprocess.process_one rồi trích đặc trưng ngay trên kết quả,
-    đúng đường đi của ảnh truy vấn trong search.search_image -> ảnh trong CSDL và ảnh truy vấn
-    được tính theo cùng một cách.
+    """
+    - File: features.py. Dùng để: trích đặc trưng cho cả bộ dữ liệu, lưu data/features.csv.
+    - Dựa trên: với mỗi ảnh đạt tiền xử lý
+      + chạy lại preprocess.process_one rồi extract ngay trên kết quả
+      + ghi mã ảnh + 39 giá trị, làm tròn 6 chữ số thập phân
+    - Ứng dụng: ảnh trong CSDL và ảnh truy vấn đi đúng cùng một đường, nên so sánh được
+      với nhau. Tệp này là đầu vào của database.tao_csdl.
+    - Cách khác: đọc ảnh đã lưu JPG (sai lệch nhẹ do nén).
     """
     lm = read_landmarks()
     with open(C.FEATURE_CSV, "w", newline="") as f:

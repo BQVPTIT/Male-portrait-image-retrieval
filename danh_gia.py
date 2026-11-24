@@ -36,10 +36,14 @@ MO_TA = {"sang": "tăng độ sáng 15%", "toi": "giảm độ sáng 15%", "xoay
 
 
 def affine(rgb, goc=0.0, ti_le=1.0, dx=0.0, dy=0.0):
-    """Xoay góc `goc` (độ) quanh tâm ảnh, co giãn `ti_le` lần, dịch (dx, dy) px.
-
-    Phần ảnh bị thiếu ở mép lấy lặp lại điểm mép gần nhất (không để viền trắng như ảnh chụp thật).
-    Dùng OpenCV vì đây là công cụ tạo dữ liệu thử, không thuộc hệ thống tìm kiếm.
+    """
+    - File: danh_gia.py. Dùng để: xoay, co giãn, dịch ảnh để tạo ảnh thử.
+    - Dựa trên: phép biến đổi affine của OpenCV
+      + ma trận xoay quanh tâm ảnh (getRotationMatrix2D), cộng thêm độ dịch (dx, dy)
+      + phần thiếu ở mép lấy lặp lại điểm mép gần nhất, không để viền trắng
+    - Ứng dụng: giả lập ảnh chụp lại cùng người (hơi nghiêng, đứng lệch, gần máy hơn).
+    - Cách khác: dùng common.align_image (tự code). Dùng OpenCV vì đây là công cụ tạo dữ liệu thử,
+      không thuộc hệ thống tìm kiếm.
     """
     M = cv2.getRotationMatrix2D((C.CENTER, C.CENTER), goc, ti_le)
     M[:, 2] += (dx, dy)
@@ -47,7 +51,15 @@ def affine(rgb, goc=0.0, ti_le=1.0, dx=0.0, dy=0.0):
 
 
 def bien_doi(rgb, kieu):
-    """Ảnh biến đổi theo `kieu` và chất lượng JPG khi lưu (95 = gần như không mất thêm chi tiết)."""
+    """
+    - File: danh_gia.py. Dùng để: tạo một biến thể của ảnh theo kiểu cho trước.
+    - Dựa trên: 8 kiểu thay đổi khi chụp lại (KIEU)
+      + sáng, tối: nhân độ sáng 1,15 hoặc 0,85
+      + xoay ±4 độ, dịch (6; 4) px, phóng to 10%, nén JPG chất lượng 40
+      + tổng hợp: sáng 10%, xoay 3 độ, dịch, thu nhỏ 5%, nén JPG 60
+    - Ứng dụng: trả về (ảnh, chất lượng JPG khi lưu) để làm ảnh truy vấn thử.
+    - Cách khác: chụp thật nhiều ảnh mỗi người.
+    """
     f = rgb.astype(np.float64)
     if kieu == "sang":
         return np.clip(f * 1.15, 0, 255).astype(np.uint8), 95
@@ -70,7 +82,15 @@ def bien_doi(rgb, kieu):
 
 
 def vector_bien_the(args):
-    """Tạo 8 biến thể của một ảnh, cho qua tiền xử lý + trích rút. Trả về [(ma, kieu, dat, ly_do, v)]."""
+    """
+    - File: danh_gia.py. Dùng để: tạo 8 biến thể của một ảnh và tính vector của từng biến thể.
+    - Dựa trên: đúng đường đi của ảnh truy vấn
+      + lưu biến thể ra tệp JPG tạm
+      + preprocess.process_one (6 bước, kể cả kiểm tra) rồi features.extract
+      + trả về danh sách (mã ảnh, kiểu, đạt hay không, lý do, vector)
+    - Ứng dụng: mỗi tiến trình con chạy hàm này cho một ảnh, 8 tiến trình chạy song song.
+    - Cách khác: biến đổi vector trực tiếp (không kiểm tra được tiền xử lý).
+    """
     ma, thu_muc = args
     rgb = preprocess.read_rgb(os.path.join(C.RAW_DIR, ma + ".jpg"))
     kq_ds = []
@@ -85,6 +105,15 @@ def vector_bien_the(args):
 
 
 def run():
+    """
+    - File: danh_gia.py. Dùng để: chạy phép thử ảnh biến đổi cho cả 1005 ảnh (8040 biến thể).
+    - Dựa trên: ảnh gốc vẫn nằm trong CSDL, hệ thống tốt thì ảnh gốc phải đứng đầu
+      + hạng của ảnh gốc = 1 + số ảnh có D nhỏ hơn D của ảnh gốc
+      + chạy song song bằng multiprocessing.Pool(8)
+      + ghi data/danh_gia.csv rồi in bảng tổng kết
+    - Ứng dụng: đánh giá kết quả (yêu cầu 4c): hạng 1 96,4%, top-5 99,0%.
+    - Cách khác: precision, recall (cần nhãn đúng, bộ dữ liệu không có).
+    """
     ids, X = S.load_features()
     mn, mx = S.load_norm()
     trong_so = S.load_weights()
@@ -111,7 +140,15 @@ def run():
 
 
 def tong_ket():
-    """In bảng kết quả theo từng kiểu biến đổi (đọc data/danh_gia.csv)."""
+    """
+    - File: danh_gia.py. Dùng để: in bảng kết quả theo từng kiểu biến đổi.
+    - Dựa trên: đọc data/danh_gia.csv
+      + số biến thể, số đạt tiền xử lý
+      + % ảnh gốc ở hạng 1, % lọt top-5, % lọt top-10, hạng trung bình
+      + dòng "tong" gộp cả 8 kiểu
+    - Ứng dụng: số liệu cho Bảng 4.4 của Báo cáo 2.
+    - Cách khác: vẽ biểu đồ cột theo kiểu biến đổi.
+    """
     with open(KQ_CSV, newline="") as f:
         rows = list(csv.DictReader(f))
     print(f"{'kieu':10s} {'so':>5s} {'dat':>5s} {'hang1%':>7s} {'top5%':>6s} {'top10%':>7s} {'hangTB':>7s}")

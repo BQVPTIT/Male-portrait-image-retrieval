@@ -34,7 +34,15 @@ DUOI_DOC = (".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff", ".jfif")
 
 
 def doc_anh(path):
-    """Đọc ảnh -> mảng RGB uint8 (h, w, 3). Đọc qua bộ đệm byte để chạy được với đường dẫn tiếng Việt."""
+    """
+    - File: chuan_hoa_anh.py. Dùng để: đọc ảnh mọi định dạng thành ma trận RGB 3 kênh.
+    - Dựa trên: giải nén bằng OpenCV qua bộ đệm byte (chạy được với đường dẫn tiếng Việt)
+      + ảnh 16 bit: chia 257 về 8 bit
+      + ảnh xám 1 kênh: nhân thành 3 kênh R = G = B
+      + ảnh có kênh trong suốt A: trộn lên nền trắng, C = A*C_ảnh + (1 - A)*255
+    - Ứng dụng: nhận cả PNG, BMP, WEBP, TIFF, không chỉ JPG.
+    - Cách khác: thư viện Pillow.
+    """
     buf = np.fromfile(path, dtype=np.uint8)
     anh = cv2.imdecode(buf, cv2.IMREAD_UNCHANGED)
     if anh is None:
@@ -50,7 +58,15 @@ def doc_anh(path):
 
 
 def ve_256(rgb):
-    """Cắt vuông ở giữa rồi đưa về 256 x 256 (không kéo méo)."""
+    """
+    - File: chuan_hoa_anh.py. Dùng để: đưa ảnh bất kỳ về đúng 256 x 256.
+    - Dựa trên: cắt vuông rồi thu nhỏ
+      + cắt hình vuông ở giữa ảnh, cạnh = cạnh ngắn (mặt nằm giữa ảnh nên không bị cắt)
+      + thu nhỏ khối k x k (k = cạnh / 256), phần lẻ dùng nội suy song tuyến tính
+      + cắt chứ không co giãn hai chiều khác nhau, nên khuôn mặt không bị méo
+    - Ứng dụng: quy cách cỡ ảnh mà bước 1 tiền xử lý kiểm tra.
+    - Cách khác: cắt quanh khuôn mặt (preprocess.lam_vuong).
+    """
     h, w = rgb.shape[:2]
     a = min(h, w)
     y0, x0 = (h - a) // 2, (w - a) // 2
@@ -63,7 +79,16 @@ def ve_256(rgb):
 
 
 def chuan_hoa_mot(path_vao, thu_muc_ra):
-    """Chuẩn hóa một ảnh. Trả về (True, đường dẫn ra) hoặc (False, lý do)."""
+    """
+    - File: chuan_hoa_anh.py. Dùng để: chuẩn hóa một tệp ảnh và ghi ra JPG.
+    - Dựa trên: doc_anh -> ve_256 -> ghi JPG chất lượng 95
+      + tên giữ nguyên, đổi đuôi thành .jpg
+      + OpenCV ghi theo thứ tự kênh B, G, R nên đảo kênh trước khi ghi
+      + trả về (True, đường dẫn ra) hoặc (False, lý do)
+    - Ứng dụng: đưa ảnh thu thập thêm hoặc ảnh truy vấn về đúng quy cách JPG 256 x 256
+      trước 6 bước tiền xử lý.
+    - Cách khác: chuyển đổi thủ công bằng phần mềm chỉnh ảnh.
+    """
     rgb = doc_anh(path_vao)
     if rgb is None:
         return False, "khong doc duoc anh"
@@ -78,6 +103,15 @@ def chuan_hoa_mot(path_vao, thu_muc_ra):
 
 
 def run(vao, thu_muc_ra):
+    """
+    - File: chuan_hoa_anh.py. Dùng để: chuẩn hóa một ảnh hoặc cả một thư mục ảnh.
+    - Dựa trên: duyệt mọi tệp có đuôi ảnh phổ biến (DUOI_DOC)
+      + gọi chuan_hoa_mot cho từng tệp
+      + in OK hoặc LOI kèm lý do, cuối cùng in tổng số ảnh đạt
+    - Ứng dụng: chạy bằng lệnh python chuan_hoa_anh.py <vào> <thư mục ra>; tệp hỏng chỉ báo lỗi,
+      không làm dừng cả lượt.
+    - Cách khác: chuẩn hóa từng ảnh bằng tay.
+    """
     os.makedirs(thu_muc_ra, exist_ok=True)
     if os.path.isdir(vao):
         ds = [os.path.join(vao, f) for f in sorted(os.listdir(vao)) if f.lower().endswith(DUOI_DOC)]

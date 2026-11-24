@@ -55,9 +55,13 @@ CREATE TABLE dac_trung (
 
 # ---------------------------------------------------------------- kết nối
 def ket_noi(db_path=C.DB_PATH):
-    """Mở kết nối tới tệp CSDL và bật kiểm tra khóa ngoại.
-
-    SQLite mặc định KHÔNG kiểm tra khóa ngoại; lệnh PRAGMA phải chạy lại mỗi lần mở kết nối.
+    """
+    - File: database.py. Dùng để: mở kết nối tới tệp CSDL SQLite.
+    - Dựa trên: thư viện chuẩn sqlite3 của Python
+      + cả CSDL là một tệp data/khuon_mat.db, không cần máy chủ
+      + SQLite mặc định KHÔNG kiểm tra khóa ngoại, nên mỗi lần mở phải chạy PRAGMA foreign_keys = ON
+    - Ứng dụng: mọi thao tác đọc, ghi CSDL đều đi qua hàm này, bảo đảm ràng buộc khóa ngoại luôn bật.
+    - Cách khác: MySQL, PostgreSQL (cần cài và chạy máy chủ).
     """
     con = sqlite3.connect(db_path)
     con.execute("PRAGMA foreign_keys = ON")
@@ -65,13 +69,27 @@ def ket_noi(db_path=C.DB_PATH):
 
 
 def duong_dan_day_du(duong_dan):
-    """Đường dẫn trong bảng anh là đường dẫn tương đối so với thư mục dự án."""
+    """
+    - File: database.py. Dùng để: đổi đường dẫn lưu trong bảng anh thành đường dẫn đầy đủ.
+    - Dựa trên: bảng anh lưu đường dẫn TƯƠNG ĐỐI, ví dụ data/raw256/man_0001.jpg
+      + ghép với thư mục dự án (common.ROOT)
+      + tách theo "/" để chạy đúng trên cả Windows lẫn Linux
+    - Ứng dụng: giao diện mở đúng tệp ảnh dù dự án được chép sang máy khác, ổ khác.
+    - Cách khác: lưu đường dẫn tuyệt đối (hỏng khi chuyển máy).
+    """
     return os.path.join(C.ROOT, *duong_dan.split("/"))
 
 
 # ---------------------------------------------------------------- tạo và nạp CSDL
 def doc_features_csv():
-    """Đọc data/features.csv (đầu ra của bước trích rút) -> (mã ảnh, ma trận N x 39 giá trị gốc)."""
+    """
+    - File: database.py. Dùng để: đọc kết quả trích rút từ data/features.csv.
+    - Dựa trên: tệp CSV (đầu ra của features.run)
+      + dòng đầu là tiêu đề, phải đúng thứ tự FEATURE_NAMES, sai thì dừng (assert)
+      + trả về (danh sách mã ảnh, ma trận N x 39 giá trị gốc)
+    - Ứng dụng: nguồn dữ liệu để nạp bảng dac_trung khi tạo CSDL.
+    - Cách khác: tính lại đặc trưng trực tiếp từ ảnh (mất khoảng 3,5 phút).
+    """
     with open(C.FEATURE_CSV, newline="") as f:
         rows = list(csv.reader(f))
     assert rows[0] == ["ma_anh"] + F.FEATURE_NAMES, "features.csv khong dung thu tu FEATURE_NAMES"
@@ -79,12 +97,14 @@ def doc_features_csv():
 
 
 def tao_csdl(db_path=C.DB_PATH):
-    """Tạo lại CSDL và nạp dữ liệu từ kết quả có sẵn (KHÔNG tính lại đặc trưng):
-
-        data/features.csv     -> bảng dac_trung (giá trị gốc của 39 đặc trưng)
-        data/raw256/*.jpg     -> bảng anh (đường dẫn, kích thước đọc từ tệp ảnh)
-    data/norm_params.json (min, max) chỉ được kiểm tra khớp thứ tự cột, không nạp vào CSDL.
-    Toàn bộ lệnh INSERT nằm trong MỘT giao dịch: lỗi ở bất kỳ dòng nào thì không dòng nào được ghi.
+    """
+    - File: database.py. Dùng để: tạo lại CSDL 2 bảng và nạp dữ liệu.
+    - Dựa trên: mô hình quan hệ, lệnh CREATE TABLE trong DDL
+      + mỗi ảnh: INSERT bảng anh trước, rồi bảng dac_trung (vì dac_trung tham chiếu anh)
+      + toàn bộ INSERT trong MỘT giao dịch: lỗi ở bất kỳ dòng nào thì không dòng nào được ghi
+      + kiểm tra norm_params.json đúng thứ tự cột, không nạp vào CSDL
+    - Ứng dụng: luồng nạp CSDL, chạy một lần.
+    - Cách khác: nạp từng ảnh riêng lẻ (dễ dở dang).
     """
     if os.path.exists(db_path):
         os.remove(db_path)
@@ -118,13 +138,28 @@ SQL_ANH = "SELECT ma_anh, duong_dan, rong, cao, dinh_dang, ngay_nap FROM anh WHE
 
 
 def doc_dac_trung(con):
-    """SELECT toàn bộ bảng dac_trung -> (danh sách mã ảnh, ma trận N x 39 giá trị gốc)."""
+    """
+    - File: database.py. Dùng để: đọc vector đặc trưng của mọi ảnh.
+    - Dựa trên: lệnh SQL_DAC_TRUNG
+      + SELECT ma_anh và 39 cột FROM dac_trung ORDER BY ma_anh
+      + kết quả đổi thành ma trận numpy để tính khoảng cách cho cả 1005 ảnh cùng lúc
+    - Ứng dụng: bước so khớp của tìm kiếm (search.load_features), phép thử đánh giá.
+    - Cách khác: đọc từng ảnh bằng WHERE ma_anh = ? (1005 lần truy vấn, chậm hơn nhiều).
+    """
     rows = con.execute(SQL_DAC_TRUNG).fetchall()
     return [r[0] for r in rows], np.array([r[1:] for r in rows], dtype=np.float64)
 
 
 def doc_min_max():
-    """min, max của 39 cột đã lưu trong data/norm_params.json, đúng thứ tự FEATURE_NAMES."""
+    """
+    - File: database.py. Dùng để: đọc min, max đã lưu của 39 đặc trưng.
+    - Dựa trên: tệp data/norm_params.json (search.fit_norm ghi ra)
+      + kiểm tra tên cột đúng thứ tự FEATURE_NAMES
+      + trả về hai mảng min, max
+    - Ứng dụng: tham số chuẩn hóa min-max cho ảnh truy vấn và ảnh trong CSDL. Không lưu thành
+      bảng vì đây là tham số của cả hệ thống, không phải dữ liệu của từng ảnh.
+    - Cách khác: SELECT MIN(), MAX() mỗi lần (thang đổi khi thêm ảnh).
+    """
     with open(C.NORM_JSON, encoding="utf-8") as f:
         p = json.load(f)
     assert p["ten"] == F.FEATURE_NAMES, "norm_params.json khong dung thu tu FEATURE_NAMES"
@@ -132,7 +167,15 @@ def doc_min_max():
 
 
 def doc_thuoc_tinh():
-    """Mô tả 39 đặc trưng (ký hiệu, tên, bộ, vai trò, min, max) -> danh sách dict, đúng thứ tự cột."""
+    """
+    - File: database.py. Dùng để: lấy mô tả 39 đặc trưng cho giao diện.
+    - Dựa trên: ghép hằng số và tệp min, max
+      + ký hiệu X0 – X38, tên tiếng Việt (features.TEN_DAC_TRUNG), bộ thuộc tính (features.BO)
+      + vai trò tìm tương đồng hay khác biệt (features.VAI_TRO, Bảng 2.1)
+      + min, max từ norm_params.json
+    - Ứng dụng: giao diện ghi tên đặc trưng và chia phần giải thích "giống ở đâu".
+    - Cách khác: bảng từ điển dữ liệu riêng (đã bỏ khi rút về 2 bảng).
+    """
     mn, mx = doc_min_max()
     return [dict(ten_cot=ten, ky_hieu=f"X{j}", ten_dac_trung=F.TEN_DAC_TRUNG[j],
                  ma_bo=next(b for b, vt in F.BO.items() if vt.start <= j < vt.stop),
@@ -141,7 +184,14 @@ def doc_thuoc_tinh():
 
 
 def doc_anh(con, ma_anh):
-    """Thông tin chung của một ảnh (bảng anh) -> dict, hoặc None nếu không có."""
+    """
+    - File: database.py. Dùng để: đọc thông tin chung của một ảnh theo mã ảnh.
+    - Dựa trên: lệnh SQL_ANH
+      + SELECT ... FROM anh WHERE ma_anh = ? (dấu ? là tham số, chống lỗi chèn chuỗi SQL)
+      + trả về dict gồm mã, đường dẫn, rộng, cao, định dạng, ngày nạp; không có thì None
+    - Ứng dụng: giao diện lấy đường dẫn ảnh của 5 kết quả để hiển thị.
+    - Cách khác: JOIN anh với dac_trung một lần cho cả 5 ảnh.
+    """
     r = con.execute(SQL_ANH, (ma_anh,)).fetchone()
     return None if r is None else dict(zip(["ma_anh", "duong_dan", "rong", "cao", "dinh_dang", "ngay_nap"], r))
 
@@ -160,13 +210,14 @@ CAU_KIEM_TRA = [
 
 
 def kiem_tra(db_path=C.DB_PATH):
-    """Chạy các câu lệnh kiểm tra toàn vẹn và in kết quả. Trả về True nếu mọi kiểm tra đều đạt.
-
-    Ngoài các câu lệnh trong CAU_KIEM_TRA còn kiểm tra:
-      - 39 cột của dac_trung đúng tên, đúng thứ tự features.FEATURE_NAMES (X0 ... X38);
-      - min, max lưu trong norm_params.json bằng MIN(), MAX() của từng cột dac_trung (đúng ngay sau
-        tao_csdl; sau khi them_anh một ảnh có giá trị ngoài [min, max] thì sẽ lệch, vì min, max giữ cố định);
-      - khóa ngoại hoạt động: chèn vector của một ảnh không có thật phải bị từ chối.
+    """
+    - File: database.py. Dùng để: kiểm tra toàn vẹn CSDL sau khi nạp (Bảng 3.3, Báo cáo 2).
+    - Dựa trên: các câu lệnh SQL trong CAU_KIEM_TRA và 3 phép thử thêm
+      + số ảnh bằng số vector, không có ảnh thiếu vector hay vector mồ côi (LEFT JOIN)
+      + 39 cột đúng tên; min, max đã lưu bằng SELECT MIN(), MAX()
+      + chèn vector của ảnh không có thật phải bị khóa ngoại từ chối
+    - Ứng dụng: chứng minh dữ liệu đúng, in "DAT" hoặc "KHONG DAT".
+    - Cách khác: kiểm tra bằng mắt.
     """
     con = ket_noi(db_path)
     kq = {}
@@ -201,17 +252,14 @@ def kiem_tra(db_path=C.DB_PATH):
 
 # ---------------------------------------------------------------- nạp thêm ảnh
 def them_anh(path, db_path=C.DB_PATH):
-    """Nạp thêm một ảnh mới vào CSDL. Trả về (mã ảnh mới hoặc None, lý do).
-
-    1. Ảnh qua đủ 6 bước tiền xử lý (preprocess.process_one), kể cả các bước kiểm tra.
-       Không đạt thì từ chối, không ghi gì vào CSDL (đúng Báo cáo 1: ảnh không đạt không được nạp).
-    2. Trích 39 đặc trưng (features.extract).
-    3. Mã mới = man_xxxx với số thứ tự lớn nhất hiện có + 1. Trong MỘT giao dịch: INSERT bảng anh,
-       INSERT bảng dac_trung, chép ảnh gốc vào data/raw256, lưu ảnh đã xử lý và 68 điểm mốc vào
-       data/prep. Lỗi ở bất kỳ bước nào thì giao dịch bị hủy (ROLLBACK).
-    min, max trong norm_params.json giữ nguyên, để vector cũ và vector mới dùng cùng tham số chuẩn hóa;
-    giá trị của ảnh mới vượt ngoài [min, max] thì x' được kẹp về [0, 1] (xem search.normalize).
-    Muốn cập nhật min, max thì phải tính lại trên toàn CSDL (thao tác bảo trì, không làm tự động).
+    """
+    - File: database.py. Dùng để: nạp thêm một ảnh mới mà không tạo lại CSDL.
+    - Dựa trên: đúng đường đi của ảnh trong CSDL, trong một giao dịch
+      + qua đủ 6 bước tiền xử lý, không đạt thì từ chối, không ghi gì
+      + trích 39 đặc trưng, mã mới = số lớn nhất hiện có + 1
+      + INSERT bảng anh, bảng dac_trung, lưu tệp; lỗi thì hủy toàn bộ (ROLLBACK)
+    - Ứng dụng: mở rộng CSDL. min, max giữ cố định, giá trị vượt ngoài được kẹp về [0; 1].
+    - Cách khác: tạo lại toàn bộ CSDL.
     """
     kq = preprocess.process_one(path)
     if not kq["dat"]:

@@ -1,14 +1,13 @@
 """
 preprocess.py - Tiền xử lý ảnh chân dung (6 bước), sau đó lưu kết quả.
 
-    B1 đọc, kiểm tra quy cách -> B2 ảnh xám -> B3 độ nét
-    -> B4 phát hiện mặt + 68 điểm mốc (dlib) -> B5 căn chỉnh theo 2 mắt (xoay + co giãn + tịnh tiến)
-    -> B6 lọc nền
-
-Tự code (common.py): ảnh xám, Laplace, căn chỉnh + nội suy song tuyến tính, tô đa giác.
-Dùng thư viện: OpenCV chỉ để đọc/ghi tệp ảnh; dlib cho B4 (bản chất ghi ở docstring).
-
-Chạy:  python preprocess.py
+- 6 bước (Báo cáo 1, Phần 1, mục 2):
+  + B1 đọc, kiểm tra quy cách -> B2 ảnh xám -> B3 độ nét
+  + B4 phát hiện mặt + 68 điểm mốc (dlib) -> B5 căn chỉnh theo 2 mắt (xoay + co giãn + tịnh tiến)
+  + B6 lọc nền
+- Tự code (common.py): ảnh xám, Laplace, căn chỉnh + nội suy song tuyến tính, tô đa giác.
+- Dùng thư viện: OpenCV chỉ để đọc/ghi tệp ảnh; dlib cho B4 (bản chất ghi ở docstring).
+- Chạy:  python preprocess.py
 """
 import os
 import csv
@@ -20,7 +19,7 @@ import dlib
 import common as C
 
 # Ngưỡng độ nét (phương sai Laplace). Chọn sau khi xem các ảnh có độ nét thấp nhất
-# trong bộ dữ liệu: ảnh dưới ngưỡng này nhìn bằng mắt đã nhòe, không rõ lông mày.
+# trong bộ dữ liệu: ảnh kém nét nhất có độ nét 23,7 mà vẫn rõ mắt, mũi, miệng, lông mày.
 NGUONG_NET = 20.0
 
 # Điểm SVM của bộ dò mặt: >= 0 là "có mặt". Khi không cửa sổ nào đạt 0, lấy cửa sổ điểm cao
@@ -32,21 +31,24 @@ NGUONG_MAT_YEU = -1.0
 # dọc HE_SO_KEO lần, rồi đo độ lệch trung bình giữa hai kết quả (tính theo khoảng cách hai mắt).
 # Điểm mốc bám đúng mắt, mũi, miệng thì hai lần cho cùng vị trí (lệch khoảng 0,02);
 # điểm mốc đặt sai thì hai lần cho hai kết quả khác hẳn nhau -> loại ảnh.
-HE_SO_KEO = 1.25           # mặt dài thêm 1/4: đủ để điểm mốc đặt sai lộ rõ, bộ dò vẫn nhận ra mặt ở cả 1006 ảnh
-NGUONG_LECH_MOC = 0.08     # phân bố cột lech_moc: 86% ảnh < 0,04 (trung vị 0,02); từ 0,08 trở lên điểm mốc sai thấy rõ bằng mắt
+HE_SO_KEO = 1.25           # mặt dài thêm 1/4: đủ để điểm mốc đặt sai lộ rõ, bộ dò vẫn nhận ra mặt ở cả 1005 ảnh
+NGUONG_LECH_MOC = 0.08     # phân bố cột lech_moc: 94% ảnh < 0,04 (trung vị 0,02); từ 0,08 trở lên điểm mốc sai thấy rõ bằng mắt
 
 COT_LOG = ["dat", "ly_do", "do_net", "so_mat", "diem_mat", "lech_moc", "ti_le_khung", "lech_tam",
            "goc_nghieng", "he_so", "ti_le_mat", "thieu"]
 
-_detector = None
-_predictor = None
+_detector = None           # bộ dò mặt dlib, nạp một lần khi cần (xem detect_landmarks)
+_predictor = None          # bộ dò 68 điểm mốc dlib
 
 
 def danh_so_anh(src_dir):
-    """Chép ảnh thu thập được vào data/raw256, đặt lại tên man_0001.jpg, man_0002.jpg...
-
-    Thứ tự đánh số = thứ tự tên tệp gốc (không phân biệt hoa thường). Ảnh gốc giữ nguyên.
-    Bảng đối chiếu mã ảnh <-> tên gốc lưu ở data/name_map.csv.
+    """
+    - File: preprocess.py. Dùng để: chép ảnh thu thập vào data/raw256 và đặt tên thống nhất.
+    - Dựa trên: đánh số theo thứ tự tên tệp gốc (không phân biệt hoa thường)
+      + tên mới: man_0001.jpg, man_0002.jpg, ...
+      + bảng đối chiếu mã ảnh với tên gốc lưu ở data/name_map.csv
+    - Ứng dụng: mã ảnh man_xxxx là khóa chính ma_anh của CSDL; ảnh gốc giữ nguyên.
+    - Cách khác: đặt tên theo mã băm nội dung (khó đọc khi báo cáo).
     """
     os.makedirs(C.RAW_DIR, exist_ok=True)
     files = sorted((f for f in os.listdir(src_dir) if f.lower().endswith(".jpg")), key=str.lower)
@@ -61,28 +63,31 @@ def danh_so_anh(src_dir):
 
 
 def thu_nho_khoi(anh, k):
-    """Thu nhỏ ảnh k lần (k nguyên): mỗi điểm mới = trung bình khối k x k điểm cũ."""
+    """
+    - File: preprocess.py. Dùng để: thu nhỏ ảnh k lần (k nguyên).
+    - Dựa trên: lấy trung bình khối k x k điểm
+      + mỗi điểm mới = (1/k^2) * tổng k x k điểm cũ
+      + cắt bớt phần lẻ để chiều cao, chiều rộng chia hết cho k
+    - Ứng dụng: thu nhỏ ảnh lớn trước khi dò mặt, và trước khi đưa về 256 x 256
+      (lam_vuong, chuan_hoa_anh.py); trung bình khối làm mượt nên ít răng cưa.
+    - Cách khác: bỏ bớt điểm (lấy 1 trên k), nhanh nhưng răng cưa.
+    """
     if k <= 1:
         return anh.astype(np.float64)
     h, w = anh.shape[0] // k * k, anh.shape[1] // k * k
+    # reshape thành (h/k, k, w/k, k, kênh) rồi lấy trung bình theo 2 trục k -> mỗi khối k x k thành 1 điểm
     return anh[:h, :w].astype(np.float64).reshape(h // k, k, w // k, k, -1).mean(axis=(1, 3))
 
 
 def lam_vuong(path, path_ra):
-    """Chuẩn bị ảnh truy vấn chưa đúng 256 x 256 (làm TRƯỚC 6 bước, không phải một bước tiền xử lý).
-
-    Đúng cách đã làm với ảnh của bộ dữ liệu (Báo cáo 1, mục 1.1): ảnh chưa vuông được làm vuông
-    mà không kéo giãn khuôn mặt, sau đó đưa về 256 x 256 và lưu JPG.
-      1. Dò khuôn mặt bằng dlib (detect_landmarks) trên ảnh xám; ảnh lớn được thu nhỏ trước
-         (thu_nho_khoi) để dò nhanh. Phải có đúng 1 khuôn mặt.
-      2. Cắt hình vuông tâm là tâm khung mặt, cạnh a = 2 x cạnh khung mặt: khi đó khung mặt chiếm
-         1/4 diện tích ảnh, đúng như phần lớn ảnh trong CSDL (trung vị ti_le_khung = 0,254).
-         a không vượt cạnh ngắn của ảnh; hình vuông chạm mép thì dịch vào trong.
-         Cắt hình vuông nên khuôn mặt không bị kéo giãn.
-      3. Đưa hình vuông về 256 x 256: thu nhỏ k = floor(a / 256) lần bằng trung bình khối k x k,
-         phần lẻ còn lại dùng nội suy song tuyến tính (common.bilinear_sample).
-      4. Ghi ra path_ra dạng JPG (chất lượng 95).
-    Trả về (True, "") hoặc (False, lý do). Ảnh không phải JPG bị từ chối như ở bước 1.
+    """
+    - File: preprocess.py. Dùng để: đưa ảnh truy vấn JPG chưa đúng 256 x 256 về 256 x 256 (trước 6 bước).
+    - Dựa trên: cắt vuông quanh khuôn mặt rồi thu nhỏ
+      + dò mặt bằng dlib, phải có đúng 1 mặt
+      + cạnh hình vuông = 2 x cạnh khung mặt (mặt chiếm khoảng 1/4 ảnh như CSDL), không vượt cạnh ngắn
+      + thu nhỏ khối k x k, phần lẻ dùng nội suy song tuyến tính, lưu JPG chất lượng 95
+    - Ứng dụng: nút "Upload ảnh" của giao diện.
+    - Cách khác: cắt ở giữa ảnh (chuan_hoa_anh.py).
     """
     if not la_jpg(path):
         return False, "khong phai JPG"
@@ -90,20 +95,24 @@ def lam_vuong(path, path_ra):
     if rgb is None or rgb.ndim != 3:
         return False, "khong doc duoc"
     h, w = rgb.shape[:2]
-    k_do = max(1, int(np.ceil(max(h, w) / 640)))           # ảnh dò mặt có cạnh dài <= 640
+    # 1. dò mặt trên bản thu nhỏ (cạnh dài <= 640) cho nhanh
+    k_do = max(1, int(np.ceil(max(h, w) / 640)))
     nho = thu_nho_khoi(rgb, k_do)
     so_mat, khung, _, _ = detect_landmarks(np.round(C.to_gray(nho)).astype(np.uint8))
     if so_mat != 1:
         return False, "so khuon mat khac 1"
+    # 2. hình vuông tâm là tâm khung mặt, cạnh a = 2 x cạnh khung mặt; chạm mép thì dịch vào trong
     l, t, r, b = [x * k_do for x in khung]
     a = int(min(2 * max(r - l, b - t), h, w))
     x0 = int(np.clip(round((l + r) / 2 - a / 2), 0, w - a))
     y0 = int(np.clip(round((t + b) / 2 - a / 2), 0, h - a))
+    # 3. thu nhỏ khối k x k, phần lẻ còn lại dùng nội suy song tuyến tính
     vuong = thu_nho_khoi(rgb[y0:y0 + a, x0:x0 + a], max(1, a // C.SIZE))
     n = vuong.shape[0]
     toa_do = np.minimum((np.arange(C.SIZE) + 0.5) * n / C.SIZE - 0.5, n - 1.001).clip(0)
     ys, xs = np.meshgrid(toa_do, toa_do, indexing="ij")
     ra = np.clip(np.round(C.bilinear_sample(vuong, xs, ys)), 0, 255).astype(np.uint8)
+    # 4. ghi JPG (OpenCV cần thứ tự kênh B, G, R)
     ok, buf = cv2.imencode(".jpg", ra[:, :, ::-1], [cv2.IMWRITE_JPEG_QUALITY, 95])
     buf.tofile(path_ra)
     return True, ""
@@ -111,10 +120,13 @@ def lam_vuong(path, path_ra):
 
 # ---------------------------------------------------------------- B1
 def la_jpg(path):
-    """Kiểm tra tệp có đúng là ảnh JPG không (hệ thống chỉ dùng một định dạng JPG).
-
-    Tệp JPEG luôn mở đầu bằng mã SOI (Start Of Image) = FF D8, ngay sau là FF của đoạn kế tiếp.
-    Kiểm tra theo nội dung tệp chứ không theo đuôi, nên tệp PNG đổi đuôi thành .jpg vẫn bị phát hiện.
+    """
+    - File: preprocess.py. Dùng để: kiểm tra tệp có thật là ảnh JPG không (bước 1).
+    - Dựa trên: "chữ ký" đầu tệp của chuẩn JPEG
+      + tệp JPEG luôn mở đầu bằng mã SOI FF D8, ngay sau là FF của đoạn kế tiếp
+      + đọc 3 byte đầu và so với FF D8 FF
+    - Ứng dụng: hệ thống chỉ dùng JPG; tệp PNG bị đổi đuôi thành .jpg vẫn bị phát hiện.
+    - Cách khác: chỉ xem đuôi tên tệp (dễ bị lừa).
     """
     try:
         with open(path, "rb") as f:
@@ -124,11 +136,13 @@ def la_jpg(path):
 
 
 def read_rgb(path):
-    """B1 - Đọc tệp ảnh thành ma trận H x W x 3 (R, G, B). Không đọc được thì trả về None.
-
-    OpenCV giải nén JPEG (giải mã Huffman -> lượng tử hóa ngược -> DCT ngược trên từng
-    khối 8x8 -> đổi YCbCr về màu) và trả về thứ tự kênh B, G, R nên phải đảo lại thành R, G, B.
-    Đọc qua np.fromfile để đường dẫn có dấu tiếng Việt vẫn đọc được.
+    """
+    - File: preprocess.py. Dùng để: đọc tệp ảnh thành ma trận H x W x 3 (R, G, B), bước 1.
+    - Dựa trên: giải nén JPEG bằng OpenCV
+      + bên trong: giải mã Huffman, lượng tử hóa ngược, DCT ngược khối 8 x 8, đổi YCbCr sang RGB
+      + OpenCV trả B, G, R nên đảo kênh; đọc qua np.fromfile để đường dẫn tiếng Việt vẫn chạy
+    - Ứng dụng: mọi bước sau làm việc trên ma trận này. Lỗi thì trả về None.
+    - Cách khác: thư viện Pillow.
     """
     try:
         data = np.fromfile(path, dtype=np.uint8)
@@ -139,39 +153,29 @@ def read_rgb(path):
         return None
     if bgr.ndim != 3 or bgr.shape[2] != 3:
         return bgr                      # trả về để bước kiểm tra báo "sai số kênh"
-    return bgr[:, :, ::-1].copy()
+    return bgr[:, :, ::-1].copy()       # B, G, R -> R, G, B
 
 
 # ---------------------------------------------------------------- B4
 def detect_landmarks(gray_u8):
-    """B4 - Phát hiện khuôn mặt và 68 điểm mốc bằng dlib.
-
-    Trả về (số mặt, khung mặt (trái, trên, phải, dưới), ma trận 68 x 2 điểm mốc, điểm SVM).
-
-    Bản chất phát hiện mặt (dlib.get_frontal_face_detector, HOG + SVM tuyến tính):
-      1. Trượt một cửa sổ trên ảnh xám ở nhiều tỉ lệ thu nhỏ (kim tự tháp ảnh).
-      2. Trong mỗi cửa sổ tính đặc trưng HOG: gradient Gx, Gy tại từng điểm,
-         độ lớn G = sqrt(Gx^2 + Gy^2), hướng = arctan(Gy / Gx); gom thành lược đồ hướng
-         theo từng ô 8x8, chuẩn hóa theo khối.
-      3. Bộ phân loại SVM tuyến tính (đã huấn luyện sẵn) tính điểm w.x + b cho vector HOG;
-         điểm dương -> cửa sổ có mặt.
-      4. Gộp các cửa sổ chồng lấn, giữ cửa sổ điểm cao nhất.
-    Bản chất 68 điểm mốc (dlib.shape_predictor, cây hồi quy ERT):
-      1. Đặt hình dạng mặt trung bình (68 điểm) vào khung mặt.
-      2. Qua nhiều tầng cây hồi quy; mỗi cây so sánh hiệu độ sáng của các cặp điểm ảnh
-         quanh vị trí hiện tại để chọn lá, lá cho lượng dịch chuyển của 68 điểm.
-      3. Cộng dồn các lượng dịch chuyển -> 68 điểm khớp dần với khuôn mặt thật.
+    """
+    - File: preprocess.py. Dùng để: tìm khuôn mặt và 68 điểm mốc (bước 4), bằng thư viện dlib.
+    - Dựa trên: học máy cổ điển đã huấn luyện sẵn
+      + dò mặt: cửa sổ trượt nhiều tỉ lệ, đặc trưng HOG (lược đồ hướng gradient), SVM tuyến tính w.x + b
+      + 68 điểm: đặt hình mặt trung bình vào khung, nhiều tầng cây hồi quy (ERT) dịch dần các điểm
+    - Ứng dụng: trả về (số mặt, khung mặt, 68 x 2 điểm, điểm SVM); mọi đặc trưng dựa vào điểm mốc.
+    - Cách khác: bộ dò CNN, MediaPipe (nặng, khó giải thích).
     """
     global _detector, _predictor
-    if _detector is None:
+    if _detector is None:               # nạp mô hình một lần, các lần sau dùng lại
         _detector = dlib.get_frontal_face_detector()
         _predictor = dlib.shape_predictor(C.MODEL_PATH)
     # 1 = phóng ảnh lên 2 lần trước khi dò; trả về mọi cửa sổ có điểm >= NGUONG_MAT_YEU
     khung, diem, _ = _detector.run(gray_u8, 1, NGUONG_MAT_YEU)
-    manh = [i for i, d in enumerate(diem) if d >= 0]
+    manh = [i for i, d in enumerate(diem) if d >= 0]          # cửa sổ chắc chắn có mặt (điểm >= 0)
     if len(manh) >= 2 or len(khung) == 0:
         return len(manh), None, None, None
-    i = manh[0] if manh else int(np.argmax(diem))
+    i = manh[0] if manh else int(np.argmax(diem))             # không có cửa sổ mạnh: lấy cửa sổ điểm cao nhất
     r = khung[i]
     shape = _predictor(gray_u8, r)
     pts = np.array([[shape.part(k).x, shape.part(k).y] for k in range(68)], dtype=np.float64)
@@ -179,55 +183,54 @@ def detect_landmarks(gray_u8):
 
 
 def landmark_shift(gray, pts):
-    """Độ lệch điểm mốc giữa 2 lần dò (ảnh gốc và ảnh kéo giãn dọc HE_SO_KEO lần).
-
-        lệch = trung bình_{i=0..67} d(P_i, Q_i) / d(mắt trái, mắt phải)
-    P_i: điểm mốc trên ảnh gốc; Q_i: điểm mốc dò trên ảnh kéo giãn rồi chia tung độ cho
-    HE_SO_KEO để đưa về ảnh gốc. Ảnh kéo giãn tạo bằng nội suy song tuyến tính (tự code).
-    Không dò được mặt trên ảnh kéo giãn thì trả về 1 (coi như không ổn định).
+    """
+    - File: preprocess.py. Dùng để: đo độ ổn định của 68 điểm mốc (kiểm tra ở bước 4).
+    - Dựa trên: dò điểm mốc 2 lần rồi so
+      + lần 2 trên một bản tạm kéo giãn dọc 1,25 lần (nội suy song tuyến tính), chia tung độ về ảnh gốc
+      + độ lệch = trung bình d(P_i, Q_i) / khoảng cách hai mắt, i = 0..67
+      + không thấy mặt ở lần 2 thì trả về 1 (coi như không ổn định)
+    - Ứng dụng: loại ảnh có độ lệch từ 0,08.
+    - Cách khác: so điểm SVM.
     """
     cao = int(round(C.SIZE * HE_SO_KEO))
     ys, xs = np.mgrid[0:cao, 0:C.SIZE].astype(np.float64)
-    keo = C.bilinear_sample(gray, xs, np.minimum(ys / HE_SO_KEO, C.SIZE - 1.001))
+    keo = C.bilinear_sample(gray, xs, np.minimum(ys / HE_SO_KEO, C.SIZE - 1.001))    # bản tạm kéo giãn dọc
     so_mat, _, q, _ = detect_landmarks(np.round(keo).astype(np.uint8))
     if so_mat != 1:
         return 1.0
-    q[:, 1] /= HE_SO_KEO
+    q[:, 1] /= HE_SO_KEO                                       # đưa tung độ về ảnh gốc
     d_mat = C.dist(*C.eye_centers(pts))
     return float(np.mean(np.sqrt(((pts - q) ** 2).sum(axis=1))) / d_mat)
 
 
 # ---------------------------------------------------------------- B6
 def face_mask(pts):
-    """B6 - Mặt nạ khuôn mặt (True = thuộc mặt) dựng từ điểm mốc đã căn chỉnh.
-
-    Đa giác gồm: viền hàm (điểm 0 -> 16) nối với 10 điểm lông mày (26 -> 17) đã dịch LÊN
-    0,6 x khoảng cách hai mắt để giữ vùng trán (bộ 68 điểm không có điểm nào trên trán).
-    0,6 (khoảng 38 px) lấy được phần trán ngay trên lông mày; dịch cao hơn thì hai góc trên
-    của mặt nạ dễ lấn sang tóc ở hai bên thái dương.
-    Tô đa giác bằng common.polygon_mask (quy tắc chẵn - lẻ, tự code).
+    """
+    - File: preprocess.py. Dùng để: tạo mặt nạ khuôn mặt để lọc nền (bước 6).
+    - Dựa trên: đa giác từ điểm mốc đã căn chỉnh
+      + viền hàm (điểm 0 -> 16) nối với 10 điểm lông mày (26 -> 17)
+      + điểm lông mày dịch lên 0,6 x khoảng cách hai mắt (khoảng 38 px) để giữ vùng trán
+      + tô bằng quy tắc chẵn – lẻ (common.polygon_mask)
+    - Ứng dụng: điểm ngoài mặt nạ tô trắng, nền không làm sai thống kê màu.
+    - Cách khác: tách nền bằng GrabCut, học sâu.
     """
     trai, phai = C.eye_centers(pts)
     d_mat = C.dist(trai, phai)
     tran = pts[26:16:-1].copy()         # điểm 26, 25, ..., 17
-    tran[:, 1] -= 0.6 * d_mat
+    tran[:, 1] -= 0.6 * d_mat           # dịch lên trên (y giảm)
     return C.polygon_mask(np.vstack([pts[0:17], tran]))
 
 
 # ---------------------------------------------------------------- xử lý 1 ảnh
 def process_one(path, giu_trung_gian=False):
-    """Chạy B1 -> B6 cho một ảnh. Trả về dict:
-
-        dat (True/False), ly_do, so_mat, diem_mat (điểm SVM của khung mặt), do_net,
-        lech_moc (độ lệch điểm mốc giữa 2 lần dò, xem landmark_shift),
-        ti_le_khung, lech_tam, goc_nghieng (độ), he_so (hệ số co giãn s): đo trên ảnh THÔ;
-        ti_le_mat (diện tích mặt nạ mặt / diện tích ảnh), thieu (phần mặt nạ rơi ra ngoài
-        ảnh thô): đo SAU căn chỉnh;
-        và nếu đạt: rgb (ảnh màu đã căn chỉnh, lọc nền), gray (ảnh xám đã căn chỉnh),
-        pts (68 điểm mốc sau căn chỉnh).
-    Dùng chung cho ảnh trong CSDL và ảnh truy vấn: cả hai qua đủ các bước kiểm tra.
-    giu_trung_gian=True (dùng cho app.py): giữ thêm kq["trung_gian"] gồm ảnh của từng bước
-    (rgb_tho, gray_tho, khung, pts_tho, rgb_can_chinh, mat_na) để hiển thị. Không đổi kết quả.
+    """
+    - File: preprocess.py. Dùng để: chạy đủ 6 bước B1 -> B6 cho một ảnh.
+    - Dựa trên: đầu ra bước trước là đầu vào bước sau; không đạt bước 1, 3, 4 thì dừng
+      + trả về dict: dat, ly_do, số liệu kiểm tra (do_net, lech_moc, goc_nghieng, he_so...)
+      + đạt thì có thêm rgb, gray, pts đã căn chỉnh và lọc nền
+      + giu_trung_gian=True: giữ ảnh từng bước để giao diện hiển thị, không đổi kết quả
+    - Ứng dụng: dùng chung cho ảnh nạp CSDL, ảnh truy vấn và ảnh biến đổi khi đánh giá.
+    - Cách khác: không có.
     """
     kq = {"dat": False, "ly_do": ""}
     kq.update({c: "" for c in COT_LOG[2:]})
@@ -272,12 +275,12 @@ def process_one(path, giu_trung_gian=False):
     #   theta = atan2(y_phải - y_trái, x_phải - x_trái);  s = D_MAT / d(mắt trái, mắt phải)
     rgb_tho, gray_tho = rgb, gray                              # giữ ảnh B1, B2 (chỉ để hiển thị)
     trai, phai = C.eye_centers(pts)
-    theta = np.arctan2(phai[1] - trai[1], phai[0] - trai[0])
-    s = C.D_MAT / C.dist(trai, phai)
+    theta = np.arctan2(phai[1] - trai[1], phai[0] - trai[0])  # góc nghiêng đường nối hai mắt
+    s = C.D_MAT / C.dist(trai, phai)                           # hệ số co giãn
     m = (trai + phai) / 2.0                                    # trung điểm hai mắt
     kq["goc_nghieng"] = float(np.degrees(theta))
     kq["he_so"] = s
-    co_du_lieu = C.align_image(np.ones((C.SIZE, C.SIZE)), theta, s, m, fill=0.0) > 0.5
+    co_du_lieu = C.align_image(np.ones((C.SIZE, C.SIZE)), theta, s, m, fill=0.0) > 0.5   # vùng có dữ liệu thật
     rgb = np.clip(np.round(C.align_image(rgb, theta, s, m)), 0, 255).astype(np.uint8)
     pts_tho = pts
     pts = np.round(C.align_points(pts, theta, s, m), 3)        # điểm mốc đi theo cùng công thức
@@ -298,13 +301,14 @@ def process_one(path, giu_trung_gian=False):
 
 # ---------------------------------------------------------------- chạy cả bộ
 def run():
-    """Chạy tiền xử lý (B1 -> B6) cho mọi ảnh trong data/raw256 và lưu kết quả vào data/prep.
-
-    aligned/man_xxxx.jpg : ảnh màu đã căn chỉnh, đã lọc nền (cùng định dạng JPG với ảnh gốc)
-    landmarks.csv        : mã ảnh + 136 tọa độ (x0, y0, ..., x67, y67)
-    preprocess_log.csv   : mã ảnh + các cột trong COT_LOG
-    Ảnh lưu ở đây chỉ để XEM và vẽ hình. Đặc trưng không tính từ tệp này mà tính thẳng từ
-    kết quả process_one (xem features.run), vì nén JPG làm đổi nhẹ giá trị điểm ảnh.
+    """
+    - File: preprocess.py. Dùng để: tiền xử lý cả bộ dữ liệu data/raw256.
+    - Dựa trên: gọi process_one cho từng ảnh, lưu vào data/prep
+      + aligned/man_xxxx.jpg: ảnh đã căn chỉnh, lọc nền (chỉ để xem)
+      + landmarks.csv: 68 điểm mốc sau căn chỉnh
+      + preprocess_log.csv: kết quả kiểm tra của từng ảnh
+    - Ứng dụng: chạy một lần khi xây dựng bộ dữ liệu; kết quả 1005/1005 ảnh đạt.
+    - Cách khác: đặc trưng không tính từ ảnh đã lưu JPG mà tính thẳng trong features.run.
     """
     shutil.rmtree(C.PREP_DIR, ignore_errors=True)     # xóa kết quả lần chạy trước để không sót ảnh đã bị loại
     os.makedirs(C.ALIGNED_DIR)

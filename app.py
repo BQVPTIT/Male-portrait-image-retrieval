@@ -65,17 +65,39 @@ FONT_DAM = ("Segoe UI", 9, "bold")
 
 
 def so(x, n=3):
-    """Số kiểu Việt Nam: dấu phẩy thập phân."""
+    """
+    - File: app.py. Dùng để: in số theo kiểu Việt Nam (dấu phẩy thập phân).
+    - Dựa trên: định dạng chuỗi của Python
+      + f"{x:.{n}f}" làm tròn x đến n chữ số thập phân
+      + đổi dấu chấm thành dấu phẩy
+    - Ứng dụng: mọi con số hiện trên giao diện (S, D, x, x') thống nhất cách viết với báo cáo,
+      ví dụ 0,9367 thay vì 0.9367.
+    - Cách khác: thư viện locale (phụ thuộc cài đặt ngôn ngữ của máy).
+    """
     return f"{x:.{n}f}".replace(".", ",")
 
 
 def so_x(k, x):
-    """X5 (phương sai LBP, cỡ hàng nghìn) lấy 1 chữ số thập phân, còn lại 3 chữ số."""
+    """
+    - File: app.py. Dùng để: in giá trị gốc của đặc trưng thứ k với số chữ số phù hợp.
+    - Dựa trên: thang giá trị khác nhau giữa các đặc trưng
+      + X5 (phương sai LBP) cỡ hàng nghìn: lấy 1 chữ số thập phân
+      + các đặc trưng còn lại cỡ 0 – 2: lấy 3 chữ số thập phân
+    - Ứng dụng: bảng so sánh và cửa sổ thế số dễ đọc, không bị quá dài.
+    - Cách khác: in mọi số cùng 3 chữ số (X5 thành chuỗi rất dài).
+    """
     return so(x, 1) if k == 5 else so(x, 3)
 
 
 def o_mau(k):
-    """Mô tả ô màu thứ k của lược đồ H x S (k = ô H * 4 + ô S)."""
+    """
+    - File: app.py. Dùng để: mô tả bằng chữ ô màu thứ k của Color Histogram.
+    - Dựa trên: cách đánh số ô k = (ô H) * 4 + (ô S) của features.hs_bins
+      + divmod(k, 4) tách lại thành chỉ số ô H và ô S
+      + ô H đầu gồm cả H >= 330 độ, ô H cuối gồm 35 – 330 độ; mỗi ô S rộng 0,25
+    - Ứng dụng: ghi chú "ô màu da nhiều nhất" và tên các ô trong cửa sổ thế số.
+    - Cách khác: chỉ ghi chỉ số ô (khó hiểu).
+    """
     i, j = divmod(k, F.SO_O_S)
     h = f"H {i * 5}–{i * 5 + 5}°" if 0 < i < F.SO_O_H - 1 else ("H 0–5° (cả ≥ 330°)" if i == 0 else "H 35–330°")
     s = [f"{x:g}".replace(".", ",") for x in (j * 0.25, j * 0.25 + 0.25)]
@@ -83,7 +105,14 @@ def o_mau(k):
 
 
 def mau_o(k):
-    """Màu thật ở giữa ô k (H giữa ô, S giữa ô, V = 0,85) để tô cột lược đồ."""
+    """
+    - File: app.py. Dùng để: lấy màu thật ở giữa ô k để tô cột Color Histogram.
+    - Dựa trên: đổi HSV sang RGB (thư viện chuẩn colorsys)
+      + H giữa ô (ô cuối lấy 37,5 độ), S giữa ô, V cố định 0,85
+      + đổi về mã màu dạng #rrggbb cho Tkinter
+    - Ứng dụng: người xem thấy ngay mỗi cột của lược đồ ứng với tông da nào.
+    - Cách khác: tô mọi cột cùng một màu (mất thông tin trực quan).
+    """
     i, j = divmod(k, F.SO_O_S)
     h = 37.5 if i == F.SO_O_H - 1 else i * 5 + 2.5
     r, g, b = colorsys.hsv_to_rgb(h / 360.0, j * 0.25 + 0.125, 0.85)
@@ -91,10 +120,26 @@ def mau_o(k):
 
 
 def rgb_hex(h):
+    """
+    - File: app.py. Dùng để: đổi mã màu dạng "#rrggbb" thành bộ ba số (R, G, B).
+    - Dựa trên: mỗi cặp ký tự là một số hệ 16
+      + int(chuỗi, 16) đổi "ff" thành 255
+      + lấy lần lượt ký tự 1–2, 3–4, 5–6
+    - Ứng dụng: Pillow cần màu dạng số khi vẽ đường đo và tô vùng lên ảnh.
+    - Cách khác: hàm ImageColor.getrgb của Pillow (thêm một thư viện con).
+    """
     return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
 
 
 def phong(co):
+    """
+    - File: app.py. Dùng để: nạp phông chữ cỡ co để viết số điểm mốc lên ảnh.
+    - Dựa trên: phông Arial của Windows (ImageFont.truetype)
+      + máy không có Arial thì dùng phông mặc định của Pillow
+      + khối try – except giúp chương trình không bị dừng vì thiếu phông
+    - Ứng dụng: ghi số thứ tự điểm mốc (0, 4, 8, ...) cạnh các điểm khi bật đường đo.
+    - Cách khác: không ghi chữ, chỉ vẽ điểm.
+    """
     try:
         return ImageFont.truetype("arial.ttf", co)
     except OSError:
@@ -102,9 +147,13 @@ def phong(co):
 
 
 def ve_len_anh(anh, pts, duong_do=False, vung=False):
-    """Vẽ lên ảnh đã căn chỉnh (chỉ để xem):
-        vung     : tô 3 vùng lấy đặc trưng kết cấu / màu (dùng đúng hàm của features.py);
-        duong_do : 6 đoạn đo của 5 đặc trưng hình học và các điểm mốc liên quan.
+    """
+    - File: app.py. Dùng để: vẽ minh họa lên ảnh đã căn chỉnh (chỉ để xem, không đổi đặc trưng).
+    - Dựa trên: đúng các hàm của features.py
+      + vung: tô vùng cằm – miệng (X5), lông mày (X6), da hai má + trán (X7 – X38), trộn 50% màu
+      + duong_do: vẽ 6 đoạn đo dùng cho X0 – X4 và đánh dấu điểm mốc liên quan
+    - Ứng dụng: giải thích cho thầy đặc trưng được đo ở đâu trên mặt.
+    - Cách khác: vẽ bằng OpenCV.
     """
     if pts is None or not (duong_do or vung):
         return Image.fromarray(anh)
@@ -139,6 +188,15 @@ def ve_len_anh(anh, pts, duong_do=False, vung=False):
 
 class App:
     def __init__(self, root):
+        """
+        - File: app.py. Dùng để: dựng cửa sổ giao diện và nạp dữ liệu một lần khi mở app.
+        - Dựa trên: thư viện Tkinter có sẵn trong Python
+          + đọc danh sách ảnh, điểm mốc, mô tả 39 đặc trưng, trọng số 1/3; nạp sẵn mô hình dlib
+          + hàng 1: nút Upload ảnh, Chọn ảnh trong CSDL, 2 ô tùy chọn vẽ
+          + hàng 2: 3 thanh trượt trọng số, nút Tìm lại, Về 1/3; vùng kết quả có thanh cuộn
+        - Ứng dụng: demo trên máy bất kỳ.
+        - Cách khác: giao diện web (Streamlit, Flask).
+        """
         self.root = root
         root.title("Tìm kiếm ảnh chân dung đàn ông - Nhóm 19")
         root.geometry(f"{min(1460, root.winfo_screenwidth() - 40)}x{min(960, root.winfo_screenheight() - 80)}+10+10")
@@ -197,7 +255,14 @@ class App:
                  font=("Segoe UI", 12), pady=40, padx=20).pack()
 
     def cuon_chuot(self, e):
-        """Lăn chuột chỉ cuộn màn hình chính khi con trỏ ở cửa sổ chính (cửa sổ chi tiết tự cuộn)."""
+        """
+        - File: app.py. Dùng để: cuộn màn hình kết quả bằng con lăn chuột.
+        - Dựa trên: sự kiện MouseWheel của Tkinter
+          + chỉ cuộn khi con trỏ đang ở cửa sổ chính (cửa sổ thế số tự cuộn riêng)
+          + delta / 120 là số nấc con lăn đã quay
+        - Ứng dụng: màn hình kết quả dài hơn một trang, cần cuộn mượt khi trình bày.
+        - Cách khác: chỉ dùng thanh cuộn bên phải.
+        """
         try:
             if str(e.widget.winfo_toplevel()) != str(self.root):
                 return
@@ -207,12 +272,28 @@ class App:
 
     # ------------------------------------------------------------ chọn ảnh
     def upload(self):
+        """
+        - File: app.py. Dùng để: xử lý nút "Upload ảnh".
+        - Dựa trên: hộp thoại chọn tệp của Tkinter (filedialog)
+          + lọc sẵn ảnh JPG, vẫn cho chọn mọi tệp (tệp sai sẽ bị bước 1 báo lỗi)
+          + có chọn tệp thì gọi tim(path)
+        - Ứng dụng: nhập ảnh chân dung mới bất kỳ làm ảnh truy vấn.
+        - Cách khác: kéo thả tệp vào cửa sổ (cần thêm thư viện).
+        """
         path = filedialog.askopenfilename(title="Chọn ảnh chân dung",
                                           filetypes=[("Ảnh JPG", "*.jpg *.jpeg *.JPG *.JPEG"), ("Tất cả tệp", "*.*")])
         if path:
             self.tim(path)
 
     def chon_trong_csdl(self):
+        """
+        - File: app.py. Dùng để: xử lý nút "Chọn ảnh trong CSDL".
+        - Dựa trên: hộp thoại chọn tệp mở sẵn thư mục data/raw256
+          + lấy mã ảnh từ tên tệp, ví dụ man_0500
+          + ảnh có trong CSDL thì truyền bo_qua để không trả lại chính nó
+        - Ứng dụng: thử nhanh với ảnh đã có, kết quả là 5 người khác giống nhất.
+        - Cách khác: ô nhập mã ảnh.
+        """
         path = filedialog.askopenfilename(title="Chọn ảnh trong CSDL", initialdir=C.RAW_DIR,
                                           filetypes=[("Ảnh JPG", "*.jpg")])
         if path:
@@ -221,6 +302,15 @@ class App:
 
     # ------------------------------------------------------------ tìm kiếm
     def tim(self, path, bo_qua=None):
+        """
+        - File: app.py. Dùng để: chạy toàn bộ một lần tìm kiếm cho ảnh đã chọn.
+        - Dựa trên: đúng quy trình của Báo cáo 2
+          + ảnh JPG chưa đúng 256 x 256 thì cắt vuông quanh mặt (preprocess.lam_vuong)
+          + tiền xử lý 6 bước (giữ ảnh trung gian), không đạt thì báo lý do
+          + trích 39 đặc trưng, xếp hạng, đo thời gian, hiển thị
+        - Ứng dụng: hàm trung tâm của hai nút chọn ảnh.
+        - Cách khác: không có.
+        """
         self.trang_thai.config(text="Đang tiền xử lý và tìm kiếm...")
         self.root.config(cursor="watch")
         self.root.update()
@@ -249,8 +339,14 @@ class App:
             self.root.config(cursor="")
 
     def trong_so_thu(self):
-        """Trọng số trên thanh trượt. Ba giá trị bằng nhau -> None (dùng trọng số mặc định 1/3);
-        ngược lại chuẩn hóa w_b / (w_hh + w_kc + w_ms) để tổng bằng 1."""
+        """
+        - File: app.py. Dùng để: đọc trọng số trên 3 thanh trượt.
+        - Dựa trên: chuẩn hóa để tổng bằng 1
+          + ba giá trị bằng nhau trả về None, tức dùng trọng số mặc định 1/3
+          + ngược lại w_b' = w_b / (w_hh + w_kc + w_ms)
+        - Ứng dụng: chỉ để THỬ trên giao diện xem top-5 đổi ra sao, không ghi vào CSDL hay tệp nào.
+        - Cách khác: ô nhập số (dễ nhập sai hơn thanh trượt).
+        """
         w = {b: self.w[b].get() for b in F.BO}
         if max(w.values()) - min(w.values()) < 1e-9:
             return None
@@ -258,7 +354,14 @@ class App:
         return {b: w[b] / tong for b in F.BO}
 
     def xep_hang(self):
-        """So vector truy vấn với CSDL (search.xep_hang) rồi đọc thông tin 5 ảnh kết quả từ bảng anh."""
+        """
+        - File: app.py. Dùng để: xếp hạng ảnh truy vấn với cả CSDL rồi lấy thông tin 5 ảnh kết quả.
+        - Dựa trên: search.xep_hang (chuẩn hóa, D từng bộ, D, S, sắp xếp)
+          + đọc đường dẫn, kích thước 5 ảnh từ bảng anh (database.doc_anh)
+          + ghi nhãn trọng số: xanh khi 1/3, đỏ khi đang thử
+        - Ứng dụng: chuẩn bị đủ số liệu cho bảng so sánh, biểu đồ và cửa sổ thế số.
+        - Cách khác: chỉ lấy top-5 (search_vector), mất kết quả trung gian.
+        """
         r = self.ket_qua
         ts = self.trong_so_thu()
         xh = S.xep_hang(r["v"], bo_qua=r["bo_qua"], trong_so=ts)
@@ -273,6 +376,14 @@ class App:
                                      + "\n(chuẩn hóa tổng = 1), không ghi vào CSDL", fg="#b00020")
 
     def tim_lai(self):
+        """
+        - File: app.py. Dùng để: xử lý nút "Tìm lại" sau khi kéo thanh trượt trọng số.
+        - Dựa trên: không tiền xử lý lại, chỉ xếp hạng lại với trọng số mới
+          + chưa có ảnh truy vấn thì không làm gì
+          + ba trọng số cùng bằng 0 thì cảnh báo (không chia được)
+        - Ứng dụng: so sánh nhanh top-5 khi đổi trọng số, giữ nguyên vị trí cuộn màn hình.
+        - Cách khác: tự tìm lại mỗi khi kéo thanh trượt (chậm, giật).
+        """
         if self.ket_qua is None:
             return
         if sum(self.w[b].get() for b in F.BO) == 0:
@@ -282,11 +393,28 @@ class App:
         self.hien_thi(giu_vi_tri=True)
 
     def ve_mac_dinh(self):
+        """
+        - File: app.py. Dùng để: xử lý nút "Về 1/3 (Báo cáo 2)".
+        - Dựa trên: đặt lại cả 3 thanh trượt về trọng số mặc định
+          + giá trị lấy từ search.TRONG_SO (1/3 mỗi bộ)
+          + gọi tim_lai để xếp hạng lại
+        - Ứng dụng: quay về đúng cấu hình đã trình bày trong báo cáo sau khi thử trọng số khác,
+          tránh demo nhầm cấu hình.
+        - Cách khác: khởi động lại app.
+        """
         for b in F.BO:
             self.w[b].set(self.ts_db[b])
         self.tim_lai()
 
     def bao_loi(self, ly_do, kq):
+        """
+        - File: app.py. Dùng để: báo cho người dùng biết ảnh không đạt tiền xử lý và vì sao.
+        - Dựa trên: bảng LY_DO đổi mã lý do thành câu tiếng Việt
+          + chèn số liệu cụ thể (độ nét, độ lệch điểm mốc) vào câu thông báo
+          + hiện ở thanh trạng thái và hộp thoại cảnh báo
+        - Ứng dụng: ảnh mờ, không thấy đúng 1 mặt, điểm mốc không ổn định đều được giải thích rõ.
+        - Cách khác: chỉ in mã lỗi.
+        """
         thong_bao = LY_DO.get(ly_do, ly_do).format(do_net=so(kq.get("do_net") or 0, 1),
                                                    lech_moc=so(kq.get("lech_moc") or 0, 3))
         self.trang_thai.config(text="Ảnh không đạt tiền xử lý: " + thong_bao)
@@ -294,7 +422,14 @@ class App:
 
     # ------------------------------------------------------------ tiện ích hiển thị
     def anh(self, img, co=CO_ANH, giu=None):
-        """PIL Image / mảng numpy / đường dẫn -> ảnh Tk cỡ co x co (giữ tham chiếu để Tk không xóa)."""
+        """
+        - File: app.py. Dùng để: đổi ảnh thành dạng Tkinter hiển thị được, cỡ co x co.
+        - Dựa trên: thư viện Pillow (Image, ImageTk)
+          + nhận đường dẫn tệp, mảng numpy hoặc ảnh Pillow
+          + giữ tham chiếu trong một danh sách, vì Tkinter tự xóa ảnh khi không còn biến nào giữ
+        - Ứng dụng: mọi ảnh trên màn hình kết quả và cửa sổ thế số.
+        - Cách khác: tk.PhotoImage (chỉ đọc được PNG, GIF).
+        """
         if isinstance(img, str):
             img = Image.open(img).convert("RGB")
         elif isinstance(img, np.ndarray):
@@ -304,31 +439,86 @@ class App:
         return anh_tk
 
     def anh_ve(self, anh, pts, co=CO_ANH, giu=None):
-        """Ảnh đã căn chỉnh + hình vẽ theo 2 ô tùy chọn, cắt khung CAT_MAT cho mặt to hơn."""
+        """
+        - File: app.py. Dùng để: lấy ảnh đã căn chỉnh kèm hình vẽ theo 2 ô tùy chọn.
+        - Dựa trên: ve_len_anh (đường đo, vùng đặc trưng)
+          + cắt khung CAT_MAT 176 x 176 quanh mặt để khuôn mặt hiện to hơn
+          + đổi sang ảnh Tkinter bằng hàm anh
+        - Ứng dụng: hàng "Đã căn chỉnh, lọc nền" của bảng so sánh và cửa sổ thế số.
+        - Cách khác: hiện nguyên ảnh 256 x 256 (mặt nhỏ, khó nhìn).
+        """
         return self.anh(ve_len_anh(anh, pts, self.ve_do.get(), self.ve_vung.get()).crop(CAT_MAT), co, giu)
 
     def anh_csdl(self, ma):
-        """Ảnh đã căn chỉnh, lọc nền của một ảnh trong CSDL (data/prep/aligned) + 68 điểm mốc."""
+        """
+        - File: app.py. Dùng để: lấy ảnh đã tiền xử lý và 68 điểm mốc của một ảnh trong CSDL.
+        - Dựa trên: tệp đã lưu sẵn khi chạy tiền xử lý
+          + ảnh: data/prep/aligned/man_xxxx.jpg
+          + điểm mốc: landmarks.csv (đã nạp vào self.lm lúc mở app)
+        - Ứng dụng: hiển thị và vẽ đường đo cho 5 ảnh kết quả mà không phải chạy lại dlib,
+          nên mỗi lần tìm chỉ mất khoảng 0,3 giây.
+        - Cách khác: chạy lại tiền xử lý cho từng ảnh kết quả (chậm).
+        """
         return np.array(Image.open(os.path.join(C.ALIGNED_DIR, ma + ".jpg")).convert("RGB")), self.lm.get(ma)
 
     def ten(self, k):
-        """Ký hiệu + tên đặc trưng thứ k (ví dụ "X0 tỉ lệ khung mặt")."""
+        """
+        - File: app.py. Dùng để: ghép ký hiệu và tên đặc trưng thứ k.
+        - Dựa trên: mô tả đặc trưng lấy từ database.doc_thuoc_tinh
+          + ký hiệu X0 – X38 và tên tiếng Việt (features.TEN_DAC_TRUNG)
+          + viết thường chữ cái đầu của tên để ghép câu, ví dụ "X0 tỉ lệ khung mặt"
+        - Ứng dụng: nhãn hàng của bảng so sánh, phần nhận xét trong cửa sổ thế số.
+        - Cách khác: chỉ ghi ký hiệu X0 (khó hiểu với người xem).
+        """
         return f"{self.tt[k]['ky_hieu']} {self.tt[k]['ten_dac_trung'][0].lower()}{self.tt[k]['ten_dac_trung'][1:]}"
 
     def tieu_de(self, cha, chu, nen):
+        """
+        - File: app.py. Dùng để: tạo dòng tiêu đề cho từng khung của màn hình kết quả.
+        - Dựa trên: một nhãn Tkinter chữ đậm, màu xanh đậm, căn trái
+          + cha: khung chứa; chu: nội dung; nen: màu nền của khung
+        - Ứng dụng: các tiêu đề "BƯỚC 1. TIỀN XỬ LÝ...", "BƯỚC 2–3...", "LỆNH SQL ĐÃ CHẠY",
+          giúp người xem theo dõi đúng trình tự xử lý.
+        - Cách khác: viết lặp lại lệnh tạo nhãn ở mỗi khung.
+        """
         tk.Label(cha, text=chu, bg=nen, fg="#1a3d7c", font=("Segoe UI", 11, "bold"), anchor="w").pack(fill="x", padx=6, pady=(4, 2))
 
     def ts_chu(self, b):
+        """
+        - File: app.py. Dùng để: viết trọng số của bộ b thành chữ để hiển thị.
+        - Dựa trên: so với 1/3
+          + trọng số đúng 1/3 (sai số dưới 1e-9) thì ghi phân số "1/3"
+          + trọng số khác (đang thử) thì ghi số thập phân 2 chữ số
+        - Ứng dụng: công thức D = 1/3·D_hh + 1/3·D_kc + 1/3·D_ms trên bảng, biểu đồ, cửa sổ thế số,
+          khớp cách viết trong báo cáo.
+        - Cách khác: luôn ghi 0,33.
+        """
         w = self.ket_qua["xh"]["trong_so"][b]
         return "1/3" if abs(w - 1 / 3) < 1e-9 else so(w, 2)
 
     def hang_cua(self, i):
-        """Hạng của ảnh i (1 = giống nhất) trong các ảnh được xét."""
+        """
+        - File: app.py. Dùng để: tính hạng của ảnh i (hạng 1 là giống nhất).
+        - Dựa trên: đếm số ảnh có S lớn hơn S của ảnh i
+          + hạng = 1 + số ảnh có S lớn hơn, chỉ xét các ảnh được xét (trừ ảnh bo_qua)
+        - Ứng dụng: hàng "Hạng" của bảng so sánh và tiêu đề cửa sổ thế số, ví dụ "1 / 1004".
+        - Cách khác: tìm vị trí của ảnh trong danh sách đã sắp xếp (phải sắp cả 1005 ảnh mỗi lần
+          hiển thị).
+        """
         xh = self.ket_qua["xh"]
         return int((xh["S"][xh["con_lai"]] > xh["S"][i]).sum()) + 1
 
     # ------------------------------------------------------------ màn hình kết quả
     def hien_thi(self, giu_vi_tri=False):
+        """
+        - File: app.py. Dùng để: vẽ lại toàn bộ màn hình kết quả.
+        - Dựa trên: xóa nội dung cũ rồi dựng 3 khung theo thứ tự
+          + khung tiền xử lý (B1 – B6), bảng so sánh, biểu đồ và lệnh SQL
+          + cập nhật thanh trạng thái (số ảnh được xét, thời gian chạy)
+          + giu_vi_tri=True: giữ vị trí cuộn khi chỉ bật, tắt ô vẽ hoặc đổi trọng số
+        - Ứng dụng: gọi sau mỗi lần tìm.
+        - Cách khác: chỉ cập nhật phần thay đổi (phức tạp hơn).
+        """
         if self.ket_qua is None:
             return
         vi_tri = self.canvas.yview()[0]
@@ -345,7 +535,14 @@ class App:
         self.canvas.yview_moveto(vi_tri if giu_vi_tri else 0)
 
     def khung_tien_xu_ly(self):
-        """Phần 1: ảnh truy vấn sau từng bước B1 -> B6, kèm số liệu kiểm tra."""
+        """
+        - File: app.py. Dùng để: hiển thị ảnh truy vấn sau từng bước tiền xử lý B1 – B6.
+        - Dựa trên: ảnh trung gian do process_one giữ lại
+          + B3 hiện |L| của bộ lọc Laplace, B4 vẽ khung mặt và 68 điểm, B5 vẽ đường chuẩn ngang qua hai mắt
+          + dưới mỗi ảnh ghi số liệu kiểm tra: độ nét, độ lệch điểm mốc, góc, hệ số co giãn
+        - Ứng dụng: đúng yêu cầu của thầy "cần thấy kết quả trung gian".
+        - Cách khác: chỉ hiện ảnh cuối.
+        """
         r = self.ket_qua
         kq = r["kq"]
         tg = kq["trung_gian"]
@@ -392,19 +589,42 @@ class App:
                      bg=nen, font=FONT, fg="#333").pack(anchor="w", padx=8, pady=(0, 4))
 
     def o(self, g, hang, cot, chu="", nen="white", font=FONT, **kw):
+        """
+        - File: app.py. Dùng để: tạo một ô của bảng so sánh tại vị trí (hàng, cột).
+        - Dựa trên: nhãn Tkinter đặt theo lưới (grid)
+          + chu: chữ trong ô; nen: màu nền; font: kiểu chữ
+          + **kw nhận thêm tùy chọn khác của nhãn, ví dụ image (ảnh) hoặc fg (màu chữ)
+        - Ứng dụng: dựng toàn bộ bảng truy vấn – top-5 với cùng một kiểu ô, khoảng cách đều.
+        - Cách khác: viết lặp lại lệnh tạo nhãn cho từng ô.
+        """
         lb = tk.Label(g, text=chu, bg=nen, font=font, justify=kw.pop("justify", "center"), padx=4, pady=2, **kw)
         lb.grid(row=hang, column=cot, sticky="nsew", padx=1, pady=1)
         return lb
 
     def dai_bo(self, g, hang, b):
-        """Hàng tiêu đề của một bộ thuộc tính, trải hết bề ngang bảng."""
+        """
+        - File: app.py. Dùng để: tạo hàng tiêu đề của một bộ thuộc tính trong bảng so sánh.
+        - Dựa trên: một nhãn trải hết 7 cột (columnspan=7)
+          + ghi tên bộ và số chiều, ví dụ "BỘ HÌNH HỌC (5 chiều)"
+          + tô màu riêng của bộ (xanh, cam, lục) giống biểu đồ đóng góp
+        - Ứng dụng: chia bảng thành 3 phần hình học, kết cấu, màu sắc, dễ đọc.
+        - Cách khác: không chia nhóm (bảng dài, khó theo dõi).
+        """
         n = F.BO[b].stop - F.BO[b].start
         lb = tk.Label(g, text=f"BỘ {TEN_BO[b].upper()} ({n} chiều)", bg=NEN_BO[b], fg=MAU_BO[b],
                       font=("Segoe UI", 9, "bold"), anchor="w", padx=6)
         lb.grid(row=hang, column=0, columnspan=7, sticky="nsew", padx=1, pady=1)
 
     def khung_so_sanh(self):
-        """Phần 2: bảng truy vấn - top-5. Cột 0 là tên hàng, cột 1 truy vấn, cột 2..6 kết quả #1..#5."""
+        """
+        - File: app.py. Dùng để: dựng bảng so sánh ảnh truy vấn với 5 ảnh kết quả.
+        - Dựa trên: kết quả trung gian của search.xep_hang
+          + hàng ảnh gốc, ảnh đã căn chỉnh (bấm để mở cửa sổ thế số)
+          + 7 đặc trưng: x, x' và |q' – x'|, ô càng xanh càng gần truy vấn; lược đồ màu 32 ô
+          + D từng bộ, D, S, hạng
+        - Ứng dụng: thầy thấy ảnh nào giống nhất và giống ở đặc trưng nào.
+        - Cách khác: chỉ hiện ảnh và S.
+        """
         r = self.ket_qua
         xh, v, kq = r["xh"], r["v"], r["kq"]
         top = xh["top"]
@@ -498,7 +718,15 @@ class App:
             self.o(g, hang, c, f"{self.hang_cua(i)} / {n_xet}")
 
     def luoc_do(self, g, hang, cot, h, h_q, nen):
-        """Vẽ lược đồ 32 ô vào một ô của bảng; cột tô đúng màu của ô (H, S); vạch đen = truy vấn."""
+        """
+        - File: app.py. Dùng để: vẽ Color Histogram 32 ô vào một ô của bảng.
+        - Dựa trên: Canvas của Tkinter
+          + mỗi cột cao theo tỉ lệ h_k, tô đúng màu của ô (mau_o), 8 nhóm H cách nhau một khe
+          + vạch đen đánh dấu lược đồ của ảnh truy vấn để so trực tiếp
+          + ghi ô màu da nhiều nhất bên dưới
+        - Ứng dụng: so sánh tông da bằng mắt.
+        - Cách khác: matplotlib (nặng hơn, chậm khi mở app).
+        """
         o = tk.Frame(g, bg=nen)
         o.grid(row=hang, column=cot, sticky="nsew", padx=1, pady=1)
         W, H, day = CO_ANH, 86, 72
@@ -519,7 +747,14 @@ class App:
         tk.Label(o, text=f"nhiều nhất ({so(100 * h[k], 0)}% điểm da):\n{o_mau(k)}", bg=nen, font=("Segoe UI", 8)).pack()
 
     def khung_bieu_do_sql(self):
-        """Phần 3: biểu đồ đóng góp của 3 bộ vào D (trái) và các lệnh SQL đã chạy (phải)."""
+        """
+        - File: app.py. Dùng để: vẽ biểu đồ đóng góp của 3 bộ vào D và liệt kê lệnh SQL đã chạy.
+        - Dựa trên: kết quả xếp hạng và hằng số SQL của database.py
+          + mỗi ảnh một thanh, chia 3 đoạn bằng trọng_số * D_bộ, thanh càng ngắn càng giống
+          + khung phải in đúng lệnh SELECT trên bảng dac_trung và bảng anh, kèm nguồn min, max và trọng số
+        - Ứng dụng: chứng minh dữ liệu lấy từ CSDL và cho thấy bộ nào làm hai ảnh khác nhau.
+        - Cách khác: bảng số.
+        """
         r = self.ket_qua
         xh = r["xh"]
         top = xh["top"]
@@ -578,7 +813,15 @@ class App:
 
     # ------------------------------------------------------------ cửa sổ thế số
     def chi_tiet(self, i):
-        """Cửa sổ thế số đầy đủ cho cặp (ảnh truy vấn, ảnh kết quả i)."""
+        """
+        - File: app.py. Dùng để: mở cửa sổ thế số đầy đủ cho cặp (ảnh truy vấn, ảnh kết quả i).
+        - Dựa trên: đúng các công thức của Báo cáo 2, Phần 4
+          + bước 1: chuẩn hóa từng chiều, thế số x' = (x – min)/(max – min)
+          + bước 2: D từng bộ, rồi D = 1/3 tổng; bước 3: S = 1/(1 + D)
+          + bước 4: xếp hạng 7 ảnh đầu; cuối cùng nhận xét đặc trưng giống, lệch nhất
+        - Ứng dụng: trả lời câu "tính ra số này thế nào".
+        - Cách khác: tính tay.
+        """
         r = self.ket_qua
         xh, v, kq = r["xh"], r["v"], r["kq"]
         ma = xh["ids"][i]
@@ -616,6 +859,15 @@ class App:
             txt.tag_configure(b, font=("Consolas", 10, "bold"), foreground=MAU_BO[b])
 
         def ghi(chu="", tag=None):
+            """
+            - File: app.py (hàm con trong chi_tiet). Dùng để: ghi một dòng chữ vào cửa sổ thế số.
+            - Dựa trên: ô văn bản tk.Text
+              + chèn chữ vào cuối, kèm xuống dòng
+              + tag chọn kiểu chữ có sẵn: muc (tiêu đề bước), dam (chữ đậm), kq (kết quả màu đỏ),
+                hoặc màu riêng của từng bộ thuộc tính
+            - Ứng dụng: viết từng dòng thế số theo đúng thứ tự các bước tính.
+            - Cách khác: ghép cả nội dung thành một chuỗi lớn rồi chèn một lần.
+            """
             txt.insert("end", chu + "\n", tag)
 
         q, x = xh["q"], xh["Xn"][i]
