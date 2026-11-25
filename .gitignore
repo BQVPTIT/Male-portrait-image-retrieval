@@ -231,6 +231,7 @@ node_modules/
 bao_cao/
 tai_lieu/
 tai_lieu_thay/
+on_thi_cuoi_ky/
 
 # Cong cu cua Claude Code (skill viet van), khong thuoc bai tap lon
 .claude/
