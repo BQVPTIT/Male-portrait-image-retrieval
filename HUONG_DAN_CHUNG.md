@@ -17,11 +17,11 @@ Dành cho cả nhóm và cho mọi phiên làm việc với Claude. Khi nội du
 6. **Không đề cập râu, kính, khẩu trang, phụ kiện** trong báo cáo. Nhóm đã quyết định bộ dữ liệu có ảnh để râu là bình thường, không coi là lỗi dữ liệu.
 7. **Chỉ dựa tài liệu nhóm cung cấp, không bịa.** Trong thân báo cáo **không chèn ký hiệu nguồn** (`[TKn tr.x]`, `[cần nguồn]`); nguồn chỉ liệt kê ở mục Tài liệu tham khảo cuối bài. Chỗ chưa có thông tin thì để `[điền]`. Phần mô tả bộ dữ liệu viết chung, không nêu tên thư mục hay tên tệp ảnh.
 10. **Mục mô tả bộ dữ liệu:** hình minh họa là **ảnh gốc đầy đủ** (chưa cắt, chưa lọc nền); ảnh đã xử lý chỉ để show khi demo. Không viết lý thuyết ảnh số (ma trận, số bit, dung lượng chưa nén) vì đó là nội dung môn Xử lý ảnh. Không đưa số liệu thống kê khó kiểm chứng (phần trăm điểm da, tỉ lệ khung mặt trong ảnh…); phần giống/khác viết chung, ngắn.
-8. Giữ **vector 39 chiều** (5 hình học + 2 kết cấu + 32 màu). Tên cột trong `features.FEATURE_NAMES` dùng chung cho báo cáo và CSDL; không đổi khi chưa hỏi cả nhóm. Không dùng học sâu (CNN, embedding).
+8. Giữ **vector 39 chiều** (5 hình học + 2 kết cấu + 32 màu). Tên cột trong `trich_rut.TEN_COT` dùng chung cho báo cáo và CSDL; không đổi khi chưa hỏi cả nhóm. Không dùng học sâu (CNN, embedding).
 9. Trả lời bằng tiếng Việt, ngắn gọn.
 
 ## 3. Pipeline hiện tại
-`data/raw256/` (1005 ảnh 256×256 .jpg) → `preprocess.py` → `features.py` → `database.py` (SQLite) → `search.py` → `app.py`. Chạy tất cả bằng `run_all.ipynb`; đánh giá bằng `danh_gia.py`.
+`data/anh256/` (1005 ảnh 256×256 .jpg) → `tien_xu_ly.py` → `trich_rut.py` → `csdl.py` (SQLite) → `tim_kiem.py` → `giao_dien.py`. Chạy tất cả bằng `chay_toan_bo.ipynb`; đánh giá bằng `danh_gia.py`.
 
 | Bước | Việc làm | Cách làm |
 |---|---|---|
@@ -32,31 +32,31 @@ Dành cho cả nhóm và cho mọi phiên làm việc với Claude. Khi nội du
 | B5 | Căn chỉnh: xoay + co giãn + tịnh tiến, hai mắt nằm ngang, cách nhau 64 px, trung điểm ở (128; 100) | tự code, nội suy song tuyến tính |
 | B6 | Lọc nền bằng mặt nạ đa giác (viền hàm + lông mày dịch lên 0,6 × khoảng cách mắt) | tự code |
 
-Tiền xử lý **6 bước** (chốt 14/10/2026, gộp phát hiện mặt với 68 điểm mốc; "lưu" không tính là bước). Sau B6, `preprocess.run()` lưu `data/prep/` (ảnh màu đã xử lý `.jpg` chỉ để xem, `landmarks.csv`, `preprocess_log.csv`).
+Tiền xử lý **6 bước** (chốt 14/10/2026, gộp phát hiện mặt với 68 điểm mốc; "lưu" không tính là bước). Sau B6, `tien_xu_ly.chay()` lưu `data/tien_xu_ly/` (ảnh màu đã xử lý `.jpg` chỉ để xem, `diem_moc.csv`, `nhat_ky.csv`).
 
-**Chỉ dùng một định dạng JPG** (chốt 12/10/2026, tránh bị hỏi "sao vừa JPG vừa PNG"). Vì JPG nén có tổn thất, `features.run()` không đọc lại ảnh trong `data/prep/` mà gọi `preprocess.process_one` trên ảnh gốc rồi trích đặc trưng ngay, đúng đường đi của ảnh truy vấn.
+**Chỉ dùng một định dạng JPG** (chốt 12/10/2026, tránh bị hỏi "sao vừa JPG vừa PNG"). Vì JPG nén có tổn thất, `trich_rut.chay()` không đọc lại ảnh trong `data/tien_xu_ly/` mà gọi `tien_xu_ly.xu_ly_mot_anh` trên ảnh gốc rồi trích đặc trưng ngay, đúng đường đi của ảnh truy vấn.
 
 - **Hình học (5):** tỉ lệ khung mặt d(0,16)/dY(27,8); gò má/hàm d(0,16)/d(4,12); khoảng cách mắt/rộng mặt; rộng cánh mũi d(31,35)/khoảng cách mắt; cao mũi dY(27,33)/dY(27,8).
 - **Kết cấu (2):** phương sai LBP vùng cằm – miệng (điểm 33, 54, 12, 8, 4, 48); mật độ lông mày (Otsu + LBP khác 0 và 255).
 - **Màu (32):** lược đồ H × S trên mặt nạ da (2 má + trán); H chia 8 ô trong 0–40°, S chia 4 ô.
-- **Tìm kiếm (phương án A, chốt 21/10/2026):** chuẩn hóa min-max (min, max đọc từ `data/norm_params.json`); khoảng cách Euclid tính riêng từng bộ, chia √(số chiều), trọng số 1/3 (hằng số `search.TRONG_SO`); S = 1/(1+D); lấy top-5 (`search.xep_hang`). Phép thử 8040 ảnh biến đổi: hạng 1 96,4%, top-5 99,0%.
-- **CSDL (chốt 24/11/2026: rút từ 4 về 2 bảng):** SQLite `data/khuon_mat.db`, 2 bảng `anh` (PK ma_anh, UNIQUE duong_dan; đặc trưng tổng quát) 1–1 `dac_trung` (ma_anh vừa PK vừa FK, 39 cột REAL giá trị gốc; đặc trưng nội dung). Lý do: thầy (tuần 5) "không có bảng nào đứng riêng" — 2 bảng phụ cũ `thuoc_tinh`/`bo_thuoc_tinh` mô tả cột, không nối khóa ngoại/JOIN được với `dac_trung`. min, max ở `norm_params.json` (`kiem_tra` đối chiếu với SELECT MIN(), MAX()); tên, vai trò X0–X38 là hằng số `features.TEN_DAC_TRUNG`, `features.VAI_TRO`. `PRAGMA foreign_keys = ON` mỗi lần kết nối; `database.kiem_tra()` chạy các câu lệnh kiểm tra toàn vẹn; `them_anh()` nạp ảnh mới trong một giao dịch, min/max giữ cố định.
-- **App:** `app.py` (Tkinter): Upload ảnh (ảnh chưa 256×256 được `preprocess.lam_vuong` cắt vuông quanh mặt, cạnh = 2 × khung mặt, không kéo giãn) / Chọn ảnh trong CSDL (bỏ chính nó). Màn hình demo (18/11, theo gợi ý của thầy "cần thấy kết quả trung gian"): (1) dải ảnh B1→B6 kèm số liệu kiểm tra; (2) bảng truy vấn – top-5: 7 đặc trưng (x, x' sau min-max, |q'−x'|, ô càng xanh càng gần), lược đồ màu 32 ô, D từng bộ, D, S, hạng; bấm ảnh kết quả → cửa sổ thế số từng bước (chuẩn hóa → D bộ → D → S → xếp hạng → nhận xét đặc trưng tương đồng / khác biệt theo `features.VAI_TRO`); (3) biểu đồ đóng góp 3 bộ vào D, các lệnh SQL đã chạy. Ô tùy chọn vẽ đường đo X0–X4 và vùng X5, X6, mặt nạ da. Thanh trượt trọng số chỉ để thử (mặc định 1/3 = `search.TRONG_SO`).
+- **Tìm kiếm (phương án A, chốt 21/10/2026):** chuẩn hóa min-max (min, max đọc từ `data/min_max.json`); khoảng cách Euclid tính riêng từng bộ, chia √(số chiều), trọng số 1/3 (hằng số `tim_kiem.TRONG_SO`); S = 1/(1+D); lấy top-5 (`tim_kiem.xep_hang`). Phép thử 8040 ảnh biến đổi: hạng 1 96,4%, top-5 99,0%.
+- **CSDL (chốt 24/11/2026: rút từ 4 về 2 bảng):** SQLite `data/khuon_mat.db`, 2 bảng `anh` (PK ma_anh, UNIQUE duong_dan; đặc trưng tổng quát) 1–1 `dac_trung` (ma_anh vừa PK vừa FK, 39 cột REAL giá trị gốc; đặc trưng nội dung). Lý do: thầy (tuần 5) "không có bảng nào đứng riêng" — 2 bảng phụ cũ `thuoc_tinh`/`bo_thuoc_tinh` mô tả cột, không nối khóa ngoại/JOIN được với `dac_trung`. min, max ở `min_max.json` (`kiem_tra` đối chiếu với SELECT MIN(), MAX()); tên, vai trò X0–X38 là hằng số `trich_rut.TEN_DAC_TRUNG`, `trich_rut.VAI_TRO`. `PRAGMA foreign_keys = ON` mỗi lần kết nối; `csdl.kiem_tra()` chạy các câu lệnh kiểm tra toàn vẹn; `them_anh()` nạp ảnh mới trong một giao dịch, min/max giữ cố định.
+- **App:** `giao_dien.py` (Tkinter): Upload ảnh (ảnh chưa 256×256 được `tien_xu_ly.lam_vuong` cắt vuông quanh mặt, cạnh = 2 × khung mặt, không kéo giãn) / Chọn ảnh trong CSDL (bỏ chính nó). Màn hình demo (18/11, theo gợi ý của thầy "cần thấy kết quả trung gian"): (1) dải ảnh B1→B6 kèm số liệu kiểm tra; (2) bảng truy vấn – top-5: 7 đặc trưng (x, x' sau min-max, |q'−x'|, ô càng xanh càng gần), lược đồ màu 32 ô, D từng bộ, D, S, hạng; bấm ảnh kết quả → cửa sổ thế số từng bước (chuẩn hóa → D bộ → D → S → xếp hạng → nhận xét đặc trưng tương đồng / khác biệt theo `trich_rut.VAI_TRO`); (3) biểu đồ đóng góp 3 bộ vào D, các lệnh SQL đã chạy. Ô tùy chọn vẽ đường đo X0–X4 và vùng X5, X6, mặt nạ da. Thanh trượt trọng số chỉ để thử (mặc định 1/3 = `tim_kiem.TRONG_SO`).
 
 ## 4. Tệp và thư mục
 Code và dữ liệu nằm ở thư mục gốc (đường dẫn trong code không đổi). Ba thư mục `bao_cao/`, `tai_lieu/`, `tai_lieu_thay/` không đưa lên git.
 
 | Đường dẫn | Nội dung |
 |---|---|
-| `common.py` | các phép xử lý tự code bằng numpy |
-| `preprocess.py`, `features.py`, `search.py` | tiền xử lý 6 bước, trích đặc trưng, tìm kiếm |
-| `database.py`, `app.py`, `danh_gia.py` | CSDL SQLite 2 bảng, giao diện Tkinter, phép thử ảnh biến đổi |
+| `xu_ly_anh.py` | các phép xử lý tự code bằng numpy |
+| `tien_xu_ly.py`, `trich_rut.py`, `tim_kiem.py` | tiền xử lý 6 bước, trích đặc trưng, tìm kiếm |
+| `csdl.py`, `giao_dien.py`, `danh_gia.py` | CSDL SQLite 2 bảng, giao diện Tkinter, phép thử ảnh biến đổi |
 | `data/khuon_mat.db`, `data/danh_gia.csv`, `data/truy_van_mau/` | CSDL, kết quả phép thử, ảnh dùng thử khi demo |
-| `run_all.ipynb` | chạy toàn bộ, tạo hình vào `figs/` (kể cả 2 sơ đồ khối Hình 1.3, 2.1) |
-| `data/raw256/` | 1005 ảnh chuẩn man_0001 … man_1005 (21/10/2026 xóa ảnh trùng man_0827 cũ, đánh số lại) |
-| `data/name_map.csv` | mã ảnh ↔ tên tệp gốc |
-| `data/features.csv`, `data/norm_params.json` | vector đặc trưng gốc và tham số chuẩn hóa |
-| `data/prep/` | kết quả tiền xử lý (sinh lại được) |
+| `chay_toan_bo.ipynb` | chạy toàn bộ, tạo hình vào `figs/` (kể cả 2 sơ đồ khối Hình 1.3, 2.1) |
+| `data/anh256/` | 1005 ảnh chuẩn man_0001 … man_1005 (21/10/2026 xóa ảnh trùng man_0827 cũ, đánh số lại) |
+| `data/ten_goc.csv` | mã ảnh ↔ tên tệp gốc |
+| `data/dac_trung.csv`, `data/min_max.json` | vector đặc trưng gốc và tham số chuẩn hóa |
+| `data/tien_xu_ly/` | kết quả tiền xử lý (sinh lại được) |
 | `models/` | file dlib `shape_predictor_68_face_landmarks.dat` (95 MB, tải về từ dlib.net) |
 | `bao_cao/Bao-cao-1-Nhom19-theo-mau-v6.docx` | **báo cáo 1 bản nộp** (nhóm sửa tay, không dựng lại từ script) |
 | `bao_cao/Bao-cao-2-Nhom19.docx`, `bao_cao/build_bao_cao_2.js` | báo cáo 2 và script dựng (`node build_bao_cao_2.js`) |
@@ -84,7 +84,7 @@ Thầy hỏi theo ba mạch: dữ liệu, CSDL, đặc trưng và cách so sánh
 - **Báo cáo 1 (nộp 22/10):**
   - điền nguồn ảnh (`[điền nguồn cụ thể]` ở mục 1 Phần 1);
   - bản v5 (16/10) cần cả nhóm đọc duyệt, mở bằng Word và bấm cập nhật mục lục;
-  - (đã xử lý 16/10) Hình 1.2 vẽ lại, bỏ ảnh có cạnh trắng (`vien_trang` trong notebook); câu mô tả đổi thành "làm vuông mà không kéo giãn". Hệ số 0,6, 1,25, S = 4 ô đã có lý do trong báo cáo và docstring. Ảnh truy vấn qua đủ các bước kiểm tra như ảnh trong CSDL (bỏ tham số `kiem_tra_net`); 1006 ảnh vẫn đạt, `features.csv` không đổi. Hai bước kiểm tra không loại ảnh nào: báo cáo giải thích là chặn ảnh nạp thêm và ảnh truy vấn;
+  - (đã xử lý 16/10) Hình 1.2 vẽ lại, bỏ ảnh có cạnh trắng (`vien_trang` trong notebook); câu mô tả đổi thành "làm vuông mà không kéo giãn". Hệ số 0,6, 1,25, S = 4 ô đã có lý do trong báo cáo và docstring. Ảnh truy vấn qua đủ các bước kiểm tra như ảnh trong CSDL (bỏ tham số `kiem_tra_net`); 1006 ảnh vẫn đạt, `dac_trung.csv` không đổi. Hai bước kiểm tra không loại ảnh nào: báo cáo giải thích là chặn ảnh nạp thêm và ảnh truy vấn;
   - nhiều ảnh có râu (nhóm chấp nhận, báo cáo không nhắc) → chuẩn bị câu trả lời miệng.
 - **Báo cáo 2:** đã có bản nháp đầy đủ `bao_cao/Bao-cao-2-Nhom19.docx` (dựng bằng `bao_cao/build_bao_cao_2.js`, 21/10/2026): PHẦN 3 (trích rút, CSDL), PHẦN 4 (sơ đồ khối, quy trình, kết quả trung gian, đánh giá, demo). Cần cả nhóm đọc duyệt, mở Word cập nhật mục lục.
 - **Báo cáo 1:** v6 vẫn ghi 1006 ảnh, phải sửa thành 1005 (việc của chat sau).
@@ -95,7 +95,7 @@ Thầy hỏi theo ba mạch: dữ liệu, CSDL, đặc trưng và cách so sánh
 **Đã chốt trong chat này:**
 - Không ký hiệu nguồn trong thân bài; nguồn chỉ ở danh mục cuối. Đã bỏ 3 bài báo nhóm không có tệp (Ojala, Kazemi–Sullivan, Dalal–Triggs), thêm sách Guojun Lu.
 - Mục 1 Phần 1 viết gộp, chung; Hình 1.1, 1.2 dùng **ảnh gốc đầy đủ** (ảnh đã xử lý chỉ show khi demo); không lý thuyết môn Xử lý ảnh (RGB 8 bit, dung lượng); không số liệu khó kiểm chứng.
-- **Chỉ dùng JPG.** `features.run()` trích đặc trưng thẳng từ `preprocess.process_one` trên ảnh gốc (như ảnh truy vấn), không đọc lại ảnh đã lưu. Đã chạy lại: `data/features.csv` giống hệt từng byte bản trước.
+- **Chỉ dùng JPG.** `trich_rut.chay()` trích đặc trưng thẳng từ `tien_xu_ly.xu_ly_mot_anh` trên ảnh gốc (như ảnh truy vấn), không đọc lại ảnh đã lưu. Đã chạy lại: `data/dac_trung.csv` giống hệt từng byte bản trước.
 - **Tiền xử lý 6 bước** (gộp phát hiện mặt + 68 điểm mốc; "lưu" không là bước). Code, notebook, Hình 1.3, 1.4, 2.1 đã đổi theo.
 - ~~Mỗi bước tiền xử lý viết theo khuôn Khái niệm – Nguyên lý (≤ 30 từ) – Công thức~~ → **thay ngày 16/10/2026**: user thấy bản v3 "khá AI, cụt ngủn". Bản v4 viết câu đầy đủ theo văn phong các báo cáo cũ của Vinh (`tai_lieu/bao_cao_mau/lối hành văn cho bớt AI của tác giả/`) và bản mẫu 7đ: mỗi bước có Mục đích – Cách làm – Công thức – câu hỏi "Tại sao…?" cho các con số; kỹ thuật có Ý tưởng – Cách làm – Ưu điểm – Nhược điểm. Vẫn không ví dụ tính tay ở tiền xử lý.
 - Văn phong: dùng skill `humanizer-vi` (và `translationese-cleaner-vi`, `style-guide-vi`, `grammar-checker-vi`) cài ở `.claude/skills/`, lấy từ github.com/longhang2004/vietnamese-humanizer. Tránh chuỗi dấu ";", "đồng thời/qua đó/từ đó", "đóng vai trò… trong việc", "được… bởi", nhiều câu liền nhau cùng mở đầu bằng "Nhóm".
@@ -109,4 +109,4 @@ Thầy hỏi theo ba mạch: dữ liệu, CSDL, đặc trưng và cách so sánh
 - Nguồn công thức: Laplace ở slide Xử lý ảnh bài 5 tr.28–29; Otsu bài 5 tr.65–67; HSV tách độ sáng bài 4 tr.36–40. Chưa có nguồn trong tài liệu nhóm: trọng số ảnh xám 0,299/0,587/0,114, phương sai Laplace làm độ nét, nội suy song tuyến tính, quy tắc chẵn – lẻ.
 - Khi trả lời thầy: tránh chữ "mô hình nhận diện" (bài toán là tìm kiếm tương đồng); lọc nền gán **trắng 255**, không phải 0; đặc trưng dùng ảnh màu đã lọc nền + ảnh xám + 68 điểm mốc.
 
-**Các thay đổi code chưa commit:** `common.py`, `preprocess.py` (thêm `la_jpg`, bỏ `kiem_tra_net`), `search.py`, `features.py`, `run_all.ipynb` (ô vẽ Hình 1.2 mới và Hình 1.6), `figs/*`, `.gitignore`, `README.md`, `CLAUDE.md`, `HUONG_DAN_CHUNG.md` (chưa có trên git). Notebook chưa được chạy lại trong Jupyter nên ô kết quả đang trống.
+**Các thay đổi code chưa commit:** `xu_ly_anh.py`, `tien_xu_ly.py` (thêm `la_jpg`, bỏ `kiem_tra_net`), `tim_kiem.py`, `trich_rut.py`, `chay_toan_bo.ipynb` (ô vẽ Hình 1.2 mới và Hình 1.6), `figs/*`, `.gitignore`, `README.md`, `CLAUDE.md`, `HUONG_DAN_CHUNG.md` (chưa có trên git). Notebook chưa được chạy lại trong Jupyter nên ô kết quả đang trống.

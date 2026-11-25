@@ -1,7 +1,7 @@
 """
 chuan_hoa_anh.py - Đưa ảnh bất kỳ về đúng quy cách của bộ dữ liệu: JPG, 256 x 256, 3 kênh màu.
 
-Làm TRƯỚC 6 bước tiền xử lý (preprocess.py). Bước 1 của tiền xử lý chỉ KIỂM TRA quy cách,
+Làm TRƯỚC 6 bước tiền xử lý (tien_xu_ly.py). Bước 1 của tiền xử lý chỉ KIỂM TRA quy cách,
 còn tệp này ĐƯA ảnh về quy cách đó, cho ảnh thu thập thêm hoặc ảnh truy vấn.
 
 Các bước cho mỗi ảnh:
@@ -27,13 +27,13 @@ import sys
 import numpy as np
 import cv2
 
-import common as C
-from preprocess import thu_nho_khoi
+import xu_ly_anh as XL
+from tien_xu_ly import thu_nho_khoi
 
 DUOI_DOC = (".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff", ".jfif")
 
 
-def doc_anh(path):
+def doc_anh(tep):
     """
     - File: chuan_hoa_anh.py. Dùng để: đọc ảnh mọi định dạng thành ma trận RGB 3 kênh.
     - Dựa trên: giải nén bằng OpenCV qua bộ đệm byte (chạy được với đường dẫn tiếng Việt)
@@ -43,8 +43,8 @@ def doc_anh(path):
     - Ứng dụng: nhận cả PNG, BMP, WEBP, TIFF, không chỉ JPG.
     - Cách khác: thư viện Pillow.
     """
-    buf = np.fromfile(path, dtype=np.uint8)
-    anh = cv2.imdecode(buf, cv2.IMREAD_UNCHANGED)
+    bo_dem = np.fromfile(tep, dtype=np.uint8)
+    anh = cv2.imdecode(bo_dem, cv2.IMREAD_UNCHANGED)
     if anh is None:
         return None
     if anh.dtype != np.uint8:                      # ảnh 16 bit -> 8 bit
@@ -65,20 +65,20 @@ def ve_256(rgb):
       + thu nhỏ khối k x k (k = cạnh / 256), phần lẻ dùng nội suy song tuyến tính
       + cắt chứ không co giãn hai chiều khác nhau, nên khuôn mặt không bị méo
     - Ứng dụng: quy cách cỡ ảnh mà bước 1 tiền xử lý kiểm tra.
-    - Cách khác: cắt quanh khuôn mặt (preprocess.lam_vuong).
+    - Cách khác: cắt quanh khuôn mặt (tien_xu_ly.lam_vuong).
     """
     h, w = rgb.shape[:2]
     a = min(h, w)
     y0, x0 = (h - a) // 2, (w - a) // 2
-    vuong = thu_nho_khoi(rgb[y0:y0 + a, x0:x0 + a], max(1, a // C.SIZE))
+    vuong = thu_nho_khoi(rgb[y0:y0 + a, x0:x0 + a], max(1, a // XL.CANH_ANH))
     n = vuong.shape[0]
     # tọa độ tâm điểm ảnh mới trên ảnh vuông n x n
-    toa_do = np.minimum((np.arange(C.SIZE) + 0.5) * n / C.SIZE - 0.5, n - 1.001).clip(0)
+    toa_do = np.minimum((np.arange(XL.CANH_ANH) + 0.5) * n / XL.CANH_ANH - 0.5, n - 1.001).clip(0)
     ys, xs = np.meshgrid(toa_do, toa_do, indexing="ij")
-    return np.clip(np.round(C.bilinear_sample(vuong, xs, ys)), 0, 255).astype(np.uint8)
+    return np.clip(np.round(XL.noi_suy_song_tuyen(vuong, xs, ys)), 0, 255).astype(np.uint8)
 
 
-def chuan_hoa_mot(path_vao, thu_muc_ra):
+def chuan_hoa_mot(tep_vao, thu_muc_ra):
     """
     - File: chuan_hoa_anh.py. Dùng để: chuẩn hóa một tệp ảnh và ghi ra JPG.
     - Dựa trên: doc_anh -> ve_256 -> ghi JPG chất lượng 95
@@ -89,20 +89,20 @@ def chuan_hoa_mot(path_vao, thu_muc_ra):
       trước 6 bước tiền xử lý.
     - Cách khác: chuyển đổi thủ công bằng phần mềm chỉnh ảnh.
     """
-    rgb = doc_anh(path_vao)
+    rgb = doc_anh(tep_vao)
     if rgb is None:
         return False, "khong doc duoc anh"
     ra = ve_256(rgb)
-    ten = os.path.splitext(os.path.basename(path_vao))[0] + ".jpg"
-    path_ra = os.path.join(thu_muc_ra, ten)
-    ok, buf = cv2.imencode(".jpg", ra[:, :, ::-1], [cv2.IMWRITE_JPEG_QUALITY, 95])
+    ten = os.path.splitext(os.path.basename(tep_vao))[0] + ".jpg"
+    tep_ra = os.path.join(thu_muc_ra, ten)
+    ok, bo_dem = cv2.imencode(".jpg", ra[:, :, ::-1], [cv2.IMWRITE_JPEG_QUALITY, 95])
     if not ok:
         return False, "khong ghi duoc JPG"
-    buf.tofile(path_ra)
-    return True, path_ra
+    bo_dem.tofile(tep_ra)
+    return True, tep_ra
 
 
-def run(vao, thu_muc_ra):
+def chay(vao, thu_muc_ra):
     """
     - File: chuan_hoa_anh.py. Dùng để: chuẩn hóa một ảnh hoặc cả một thư mục ảnh.
     - Dựa trên: duyệt mọi tệp có đuôi ảnh phổ biến (DUOI_DOC)
@@ -129,4 +129,4 @@ if __name__ == "__main__":
     if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(1)
-    run(sys.argv[1], sys.argv[2])
+    chay(sys.argv[1], sys.argv[2])

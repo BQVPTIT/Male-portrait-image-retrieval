@@ -12,20 +12,20 @@ BTL môn Hệ CSDL đa phương tiện (PTIT, GV Nguyễn Đình Hóa), nhóm 19
 - Demo vào ngày thi, chấm cá nhân.
 
 ## Dữ liệu
-- 1005 ảnh thu thập thủ công, mỗi người đúng 1 ảnh, đã resize 256×256 .jpg, đặt trong `data/raw256/`, tên `man_0001.jpg` … `man_1005.jpg`.
+- 1005 ảnh thu thập thủ công, mỗi người đúng 1 ảnh, đã resize 256×256 .jpg, đặt trong `data/anh256/`, tên `man_0001.jpg` … `man_1005.jpg`.
 - Không có nhiều ảnh cho cùng một người → không có "đáp án đúng" theo người.
 
 ## Pipeline hiện tại
-- `common.py`: các phép xử lý tự code bằng numpy (ảnh xám, Laplace, xoay + nội suy song tuyến tính, RGB→HSV, LBP).
-- `preprocess.py` (6 bước): B1 đọc/kiểm tra → B2 xám → B3 độ nét → B4 phát hiện mặt + 68 điểm mốc (dlib) → B5 căn chỉnh cho 2 mắt nằm ngang → B6 lọc nền bằng mặt nạ landmark; sau đó lưu vào `data/prep/`.
-- `features.py`: vector 39 chiều
+- `xu_ly_anh.py`: các phép xử lý tự code bằng numpy (ảnh xám, Laplace, xoay + nội suy song tuyến tính, RGB→HSV, LBP).
+- `tien_xu_ly.py` (6 bước): B1 đọc/kiểm tra → B2 xám → B3 độ nét → B4 phát hiện mặt + 68 điểm mốc (dlib) → B5 căn chỉnh cho 2 mắt nằm ngang → B6 lọc nền bằng mặt nạ landmark; sau đó lưu vào `data/tien_xu_ly/`.
+- `trich_rut.py`: vector 39 chiều
   - **Hình học (5):** tỉ lệ khung mặt d(0,16)/dY(27,8); gò má/hàm d(0,16)/d(4,12); khoảng cách mắt/rộng mặt; rộng cánh mũi d(31,35)/khoảng cách mắt; cao mũi dY(27,33)/dY(27,8).
   - **Kết cấu (2):** phương sai LBP vùng cằm–miệng (điểm 33, 54, 12, 8, 4, 48); mật độ lông mày (Otsu + LBP khác 0 và 255).
   - **Màu (32):** lược đồ H×S trên mặt nạ da (2 má + trán); H chia 8 ô trong 0–40°, S chia 4 ô.
-- `search.py`: chuẩn hóa min-max (lưu `norm_params.json`); khoảng cách Euclid tính riêng từng bộ, chia √(số chiều), trọng số 1/3; S = 1/(1+D), lấy top-5. Vector, min/max, trọng số đọc từ CSDL.
-- `database.py`: CSDL SQLite `data/khuon_mat.db`, 2 bảng `anh` 1–1 `dac_trung` (khóa ngoại `ma_anh`); min/max ở `norm_params.json`, trọng số 1/3 là hằng số `search.TRONG_SO` (chốt 24/11/2026); kiểm tra toàn vẹn; thêm ảnh mới.
-- `app.py`: giao diện Tkinter; `danh_gia.py`: phép thử ảnh biến đổi.
-- `run_all.ipynb`: chạy toàn bộ.
+- `tim_kiem.py`: chuẩn hóa min-max (lưu `min_max.json`); khoảng cách Euclid tính riêng từng bộ, chia √(số chiều), trọng số 1/3; S = 1/(1+D), lấy top-5. Vector, min/max, trọng số đọc từ CSDL.
+- `csdl.py`: CSDL SQLite `data/khuon_mat.db`, 2 bảng `anh` 1–1 `dac_trung` (khóa ngoại `ma_anh`); min/max ở `min_max.json`, trọng số 1/3 là hằng số `tim_kiem.TRONG_SO` (chốt 24/11/2026); kiểm tra toàn vẹn; thêm ảnh mới.
+- `giao_dien.py`: giao diện Tkinter; `danh_gia.py`: phép thử ảnh biến đổi.
+- `chay_toan_bo.ipynb`: chạy toàn bộ.
 
 ## Giảng viên (quan trọng khi viết code và giải thích)
 - Ưu tiên code tay hơn gọi thư viện. Nếu dùng thư viện, phải giải thích được bản chất: tự code thì gồm những bước gì.
@@ -36,7 +36,7 @@ BTL môn Hệ CSDL đa phương tiện (PTIT, GV Nguyễn Đình Hóa), nhóm 19
 
 ## Quy tắc khi làm việc trong repo này
 - Code đơn giản, ít file, chú thích tiếng Việt, ghi rõ công thức ngay trong docstring.
-- Không đổi định nghĩa 39 đặc trưng khi chưa hỏi. Tên cột trong `features.FEATURE_NAMES` được dùng chung cho báo cáo và CSDL.
+- Không đổi định nghĩa 39 đặc trưng khi chưa hỏi. Tên cột trong `trich_rut.TEN_COT` được dùng chung cho báo cáo và CSDL.
 - Phép xử lý mới ưu tiên tự code bằng numpy. Chỉ dùng OpenCV/dlib khi tự code quá phức tạp, và khi đó ghi bản chất vào docstring.
 - Không thêm học sâu (CNN, embedding) vào pipeline chính.
 - Báo cáo không đề cập râu, kính, phụ kiện.
