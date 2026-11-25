@@ -26,6 +26,7 @@ import xu_ly_anh as XL
 import tien_xu_ly as TXL
 import trich_rut as TR
 import tim_kiem as TK
+
 TEP_KET_QUA = os.path.join(XL.THU_MUC_GOC, "data", "danh_gia.csv")
 KIEU = ["sang", "toi", "xoay_trai", "xoay_phai", "dich", "phong_to", "nen_jpg", "tong_hop"]
 MO_TA = {"sang": "tăng độ sáng 15%", "toi": "giảm độ sáng 15%", "xoay_trai": "xoay 4°",

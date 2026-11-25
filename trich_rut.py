@@ -16,6 +16,7 @@ import cv2
 
 import xu_ly_anh as XL
 import tien_xu_ly as TXL
+
 SO_O_H, SO_O_S = 8, 4      # số ô của kênh H và kênh S
 H_MAX = 40.0               # dải sắc độ da được chia ô: 0..40 độ (5 độ / ô)
 

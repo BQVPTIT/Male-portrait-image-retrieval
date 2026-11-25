@@ -19,6 +19,7 @@ import xu_ly_anh as XL
 import tien_xu_ly as TXL
 import trich_rut as TR
 import csdl as CSDL
+
 SO_KET_QUA = 5
 TRONG_SO = {"hinh_hoc": 1 / 3, "ket_cau": 1 / 3, "mau_sac": 1 / 3}    # Báo cáo 2, Phần 4 mục 2.4
 

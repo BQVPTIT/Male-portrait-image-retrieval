@@ -36,6 +36,7 @@ import tien_xu_ly as TXL
 import trich_rut as TR
 import tim_kiem as TK
 import csdl as CSDL
+
 TEN_BO = {"hinh_hoc": "Hình học", "ket_cau": "Kết cấu", "mau_sac": "Màu sắc"}
 KY_HIEU_BO = {"hinh_hoc": "D_hh", "ket_cau": "D_kc", "mau_sac": "D_ms"}
 MAU_BO = {"hinh_hoc": "#4C78A8", "ket_cau": "#E0802A", "mau_sac": "#4E9A47"}       # màu của 3 bộ (biểu đồ)

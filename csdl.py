@@ -32,6 +32,7 @@ import cv2
 import xu_ly_anh as XL
 import tien_xu_ly as TXL
 import trich_rut as TR
+
 # ---------------------------------------------------------------- lệnh tạo bảng
 COT_DAC_TRUNG = ",\n".join(f"    {ten:<13} REAL NOT NULL" for ten in TR.TEN_COT)
 

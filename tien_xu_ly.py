@@ -17,6 +17,7 @@ import cv2
 import dlib
 
 import xu_ly_anh as XL
+
 # Ngưỡng độ nét (phương sai Laplace). Chọn sau khi xem các ảnh có độ nét thấp nhất
 # trong bộ dữ liệu: ảnh kém nét nhất có độ nét 23,7 mà vẫn rõ mắt, mũi, miệng, lông mày.
 NGUONG_NET = 20.0
