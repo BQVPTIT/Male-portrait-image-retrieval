@@ -1,9 +1,14 @@
 # Quy tắc bắt buộc cho giao_dien.py (demo) — bám đúng Báo cáo 1 và Báo cáo 2
 
-Nhóm 19 · Hệ CSDL đa phương tiện · chốt ngày 26/11/2026
+Nhóm 19 · Hệ CSDL đa phương tiện · cập nhật 26/11/2026, sau khi đã nộp Báo cáo 2
 
-Nguồn đối chiếu: Báo cáo 1 bản đã nộp `bao_cao/[D23-Lớp 3] Nhóm 19-báo cáo 1.pdf` và Báo cáo 2 `bao_cao/[D23-Lớp 3] Nhóm 19-báo cáo 2.docx`.
-Demo chiếm 60% điểm và thầy chấm bằng cách đối chiếu demo với hai báo cáo. Vì vậy demo nói khác báo cáo ở chỗ nào thì chỗ đó bị coi là sai.
+Nguồn đối chiếu là hai bản **đã nộp, không sửa nữa**:
+- Báo cáo 1: `bao_cao/[D23-Lớp 3] Nhóm 19-báo cáo 1.pdf` (nộp 23/10/2026).
+- Báo cáo 2: `bao_cao/[D23-Lớp 3] Nhóm 19-báo cáo 2.pdf`, 28 trang, nộp 26/11/2026. Bản Word cùng tên chỉ dùng để gộp báo cáo cuối kỳ.
+
+Demo chiếm 60% điểm và thầy chấm bằng cách đối chiếu demo với hai báo cáo. Báo cáo đã nộp nên **demo phải theo báo cáo**, không sửa báo cáo cho theo demo. Demo nói khác báo cáo ở chỗ nào thì chỗ đó bị coi là sai.
+
+Trong Báo cáo 2, phần nhận xét viết bằng lời, không ghi số; **mọi số liệu nằm trong bảng và hình**. Khi thầy hỏi một con số, chỉ vào đúng bảng hoặc hình ở mục 4 dưới đây, hoặc chạy demo cho thầy xem.
 
 ## 1. Những gì KHÔNG được đổi (đã ghi trong báo cáo)
 
@@ -25,7 +30,7 @@ Các tệp `tien_xu_ly.py`, `xu_ly_anh.py`, `trich_rut.py`, `tim_kiem.py`, `csdl
 1. Tệp không phải JPG thì từ chối và báo lý do.
 2. Ảnh chưa đúng 256 × 256 thì **làm vuông** (`tien_xu_ly.lam_vuong`): cắt hình vuông quanh khuôn mặt, cạnh bằng 2 lần khung mặt, rồi thu về 256 × 256. Báo cáo 2 ghi việc này ở mục 1.2 Phần 4.
 3. Chạy đủ 6 bước tiền xử lý, kể cả các bước kiểm tra. Ảnh không đạt thì dừng và báo đúng lý do: ảnh mờ (độ nét < 20), không đúng 1 khuôn mặt, hoặc điểm mốc không ổn định (độ lệch ≥ 0,08).
-4. Trích 39 đặc trưng, chuẩn hóa, so với cả 1005 vector, sắp S giảm dần.
+4. Trích 39 đặc trưng, chuẩn hóa, so với cả 1005 vector, sắp S giảm dần; S bằng nhau thì giữ thứ tự mã ảnh (BC2 Phần 4 mục 1.4, bước 5 – 6).
 5. Ảnh lấy từ thư mục ảnh của CSDL thì **bỏ chính ảnh đó** khỏi kết quả.
 6. Lấy 5 ảnh đầu.
 
@@ -48,7 +53,21 @@ Hai ảnh ở `data/anh_moi/` là hai trường hợp đề bài nêu (BC2 Phầ
 | `Bruno-Fernandes-commons.jpg`, người đã có trong CSDL (Bảng 4.2) | man_0636 (0,9548), man_0890 (0,9452), man_0540 (0,9356), man_0795 (0,9329), man_0843 (0,9314) | ảnh cùng người man_0108 đứng hạng 26, S = 0,9161 |
 | `chu-ngoc-nguyen-luc.jpg`, người chưa có trong CSDL (Bảng 4.3) | man_0636 (0,9482), man_0564 (0,9339), man_0496 (0,9299), man_0500 (0,9248), man_0625 (0,9243) | — |
 
-Số để trả lời miệng khi thầy hỏi về đánh giá (BC2 Phần 4 mục 3.2): trên 8040 ảnh biến đổi, ảnh gốc đứng hạng 1 ở 96,4% số lần và nằm trong top-5 ở 99,0% số lần.
+Số để trả lời miệng khi thầy hỏi về đánh giá (BC2 Phần 4 mục 3.2): trên 8040 ảnh biến đổi, ảnh gốc đứng hạng 1 ở 96,4% số lần và nằm trong top-5 ở 99,0% số lần. Hai số này ghi trên cột "Tất cả 8 kiểu" của Hình 4.7; lời văn trong báo cáo không ghi số.
+
+Bản đồ tìm số nhanh trong Báo cáo 2:
+
+| Thầy hỏi về | Mở |
+|---|---|
+| Giá trị X0 – X6 của ảnh mẫu; nhỏ nhất, lớn nhất, trung bình, độ lệch chuẩn | Bảng 3.1 |
+| Tham số và Color Histogram của ảnh mẫu | Bảng 3.2, Bảng 3.3 |
+| Vector 39 giá trị của ảnh mẫu, vị trí trong bảng dac_trung | Hình 3.4 |
+| Kết quả kiểm tra toàn vẹn CSDL | Bảng 3.4 |
+| Phân bố đặc trưng, khoảng cách giữa các cặp ảnh | Hình 3.6 – 3.8 |
+| Chức năng, dữ liệu vào, ra của từng khối | Bảng 4.1 |
+| Đặc trưng, D từng bộ, D, S, hạng của trường hợp 1 / 2 | Bảng 4.2 / Bảng 4.3 |
+| Tổng hợp đánh giá hai trường hợp | Bảng 4.4 |
+| Tám kiểu biến đổi; tỉ lệ tìm lại ảnh gốc | Hình 4.6; Hình 4.7 |
 
 ## 5. Chỗ hiện tại còn lệch báo cáo, PHẢI sửa khi chỉnh giao diện
 
